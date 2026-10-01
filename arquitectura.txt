@@ -1,0 +1,414 @@
+================================================================================
+ARQUITECTURA - SERVICIO DE LOGIN
+Documento de trabajo / indicaciones de estructura
+================================================================================
+
+Estado: DISENO + PLAN COMPLETOS. Pendiente: revision del plan y eleccion
+del metodo de ejecucion.
+
+Ultima actualizacion: 2026-10-01
+
+
+--------------------------------------------------------------------------------
+1. OBJETIVO
+--------------------------------------------------------------------------------
+
+Un servicio de autenticacion (login) nuevo y autocontenido, que vamos a tener
+que defender.
+
+El valor del proyecto NO esta en la funcionalidad (un login es un login), sino
+en la ESTRUCTURA y en las PRACTICAS DE SEGURIDAD que el proyecto demuestra y
+que se pueden explicar y justificar en la defensa.
+
+
+--------------------------------------------------------------------------------
+2. RESTRICCIONES Y DECISIONES TOMADAS
+--------------------------------------------------------------------------------
+
+- Lenguaje ............ Node.js + TypeScript
+- Base de datos ....... PostgreSQL (local)
+- Interfaz ............ API pura + OpenAPI/Swagger. Sin frontend.
+                        Swagger sirve como interfaz de prueba en la defensa.
+- Ejecucion ........... Docker en LOCAL por ahora. La VM y el endurecimiento
+                        llegan despues.
+- Requisito clave ..... La estructura debe permitir ENDURECER EL SERVICIO SIN
+                        REESCRIBIRLO: secretos por variable de entorno, usuario
+                        no-root en el contenedor, healthchecks, capas de red y,
+                        mas adelante, manifests de Kubernetes.
+- Ubicacion .......... /home/shado/prueba/proyecto/servicio-login
+
+Estructura elegida: MONOLITO MODULAR POR FEATURE (vertical slices).
+
+
+--------------------------------------------------------------------------------
+3. LAYOUT DEL REPOSITORIO
+--------------------------------------------------------------------------------
+
+servicio-login/
+|
+|-- docker-compose.yml        postgres + mailpit + api (desarrollo local)
+|-- .env.example              todas las variables, SIN secretos reales
+|-- .dockerignore
+|-- Dockerfile                multi-stage, usuario no-root
+|-- package.json
+|-- tsconfig.json
+|-- README.md
+|
+|-- docs/
+|   |-- security.md           modelo de amenazas + controles implementados
+|   `-- runbook.md            migraciones, backup, deploy, rotacion de secretos
+|
+|-- scripts/
+|   |-- seed.ts               datos de prueba
+|   `-- demo-defensa.sh       guion que se ejecuta en la defensa
+|
+|-- k8s/                      (FASE 2) manifests, cuando exista la VM
+|
+`-- src/
+    |
+    |-- server.ts             entrypoint: listen + graceful shutdown
+    |-- app.ts                composition root: cablea todo aqui, y solo aqui
+    |
+    |-- config/
+    |   `-- env.ts            validacion; si falta una variable, muere al arrancar
+    |
+    |-- shared/               infraestructura transversal
+    |   |-- db/               pool de postgres + migraciones SQL
+    |   |   |-- pool.ts
+    |   |   `-- migrations/   archivos .sql numerados
+    |   |-- crypto/           argon2id, tokens aleatorios, TOTP
+    |   |-- http/             asyncHandler, errorHandler, validacion
+    |   |-- errors.ts         jerarquia de errores de dominio
+    |   `-- logger.ts
+    |
+    `-- modules/
+        |-- auth/             registro + login
+        |-- users/            alta y perfil
+        |-- sessions/         refresh tokens, rotacion, revocacion
+        |-- mfa/              TOTP + codigos de recuperacion
+        `-- audit/            eventos de seguridad
+
+
+--------------------------------------------------------------------------------
+4. EL PATRON: 5 ARCHIVOS (6 en realidad) POR MODULO
+--------------------------------------------------------------------------------
+
+Cada modulo tiene SIEMPRE los mismos archivos, con nombres identicos:
+
+  modules/<nombre>/
+  |
+  |-- <nombre>.routes.ts         SOLO HTTP: parsear, validar, responder.
+  |                              CERO logica de negocio.
+  |-- <nombre>.service.ts        LA LOGICA. No sabe que existe HTTP ni SQL.
+  |-- <nombre>.repository.ts     EL PUERTO: interface TypeScript. Sin postgres.
+  |-- <nombre>.pg-repository.ts  EL ADAPTER: la implementacion con SQL.
+  |-- <nombre>.schema.ts         validacion de la entrada con zod.
+  `-- <nombre>.types.ts          tipos del dominio.
+
+
+--------------------------------------------------------------------------------
+5. LAS TRES REGLAS (argumento de defensa)
+--------------------------------------------------------------------------------
+
+REGLA 1 - El service.ts no importa ni express ni pg.
+          Solo conoce al repository como interface. Por eso se puede testear
+          con un fake en memoria, sin levantar la base de datos.
+
+REGLA 2 - repository.ts es una interface; .pg-repository.ts la implementa.
+          Cambiar de base de datos, o agregar cache, NO toca el service.
+
+REGLA 3 - app.ts es el UNICO lugar donde se conectan las piezas.
+          Cambiar argon2id por bcrypt, o PostgreSQL por otra cosa, es editar
+          un archivo, no veinte.
+
+
+--------------------------------------------------------------------------------
+6. POR QUE LA IMPLEMENTACION DE POSTGRES VIVE DENTRO DEL MODULO
+--------------------------------------------------------------------------------
+
+La implementacion .pg-repository.ts NO va a src/adapters/.
+
+Va dentro de la carpeta del modulo para que cada modulo sea autocontenido y
+legible de un solo tirón, que es el criterio de simplicidad que se pidió.
+
+Cuando un modulo crezca demasiado, ahí sí se extrae a un servicio aparte.
+No antes.
+
+
+--------------------------------------------------------------------------------
+7. ALCANCE FUNCIONAL v1
+--------------------------------------------------------------------------------
+
+- Registro con email + contraseña, hash argon2id
+- Access token + refresh token rotativo, con revocación
+- MFA / TOTP (segundo factor) + códigos de recuperación
+- Rate limiting por IP y por email, con bloqueo tras N intentos
+- Auditoría de eventos de seguridad
+- RBAC: roles y endpoint protegido de ejemplo
+
+FUERA DE ALCANCE v1 (queda para adelante, no es la meta):
+- Login social / OAuth2
+- Recuperacion de contrasena y verificacion de email
+- Frontend propio
+
+
+--------------------------------------------------------------------------------
+8. PENDIENTES DE DISENO
+--------------------------------------------------------------------------------
+
+[x] Modelo de datos: tablas, columnas, indices, constraints (ver seccion 9)
+[x] Flujo de un request completo: registro, login, refresh, MFA (ver seccion 10)
+[x] Manejo de errores: jerarquia, codigos HTTP (ver seccion 11)
+[x] Estrategia de testing: unitario con fakes, integracion (ver seccion 12)
+[x] Capa de despliegue: Docker Compose y ruta de endurecimiento
+    (ver seccion 13)
+[x] docs/security.md: modelo de amenazas y controles (ver seccion 14)
+[x] Plan de implementacion (ver docs/superpowers/plans/2026-10-01-servicio-login.md)
+
+
+--------------------------------------------------------------------------------
+9. MODELO DE DATOS (5 tablas, ni una mas en v1)
+--------------------------------------------------------------------------------
+
+users
+  - id .............. uuid, pk
+  - email ........... varchar(320), unique, siempre en minusculas
+                      (se normaliza en la app, constraint unique en la base)
+  - password_hash ... text, NOT NULL (hash argon2id, jamas en claro)
+  - role ............ 'user' | 'admin', default 'user'
+  - is_active ....... boolean, default true
+  - mfa_enabled ..... boolean, default false
+  - created_at, updated_at
+
+  Sin columna failed_attempts: los intentos van a auditoria, no al usuario.
+
+refresh_tokens (lo que hace revocable lo "stateless")
+  - id .............. uuid, pk
+  - user_id ......... fk -> users, on delete cascade
+  - token_hash ...... text, unique. SHA-256 del token. NUNCA el token en claro.
+  - expires_at ...... timestamp (30 dias)
+  - revoked_at ...... timestamp nullable
+  - replaced_by ..... uuid nullable (apunta al token hijo en la rotacion)
+  - created_at, ip .. ip de emision (para forense)
+  - indices ......... token_hash (unique), user_id, expires_at
+
+mfa_secrets
+  - user_id ........ pk, fk -> users
+  - secret .......... text (seed TOTP en base32)
+  - created_at, last_used_at (nullable)
+  - DEUDA EXPLICITA: en v1 se guarda sin cifrar dentro de una base a la que
+    solo accede la API. El campo esta aislado para cifrarlo despues con clave
+    de entorno/KMS sin tocar el service. Se defiende como decision anotada,
+    no como descuido.
+
+recovery_codes
+  - id, user_id (fk, cascade)
+  - code_hash ....... text (hash con sal, nunca en claro)
+  - used_at ......... nullable, un solo uso
+  - created_at
+  - Se muestran en claro UNA SOLA VEZ al activar MFA; despues solo hashes.
+
+audit_events (append-only: la API nunca la actualiza ni la borra)
+  - id, occurred_at
+  - user_id ......... nullable (el login fallido puede no tener usuario)
+  - actor_ip
+  - event_type ...... register, login_success, login_failure, refresh,
+                      refresh_reuse_detected, mfa_enabled, mfa_success,
+                      mfa_failure, ...
+  - metadata ........ jsonb (user-agent, motivo, etc.)
+  - indices ......... (user_id, occurred_at), event_type
+
+SIN tabla de rate limiting: el limite vive EN MEMORIA (ventana deslizante
+por IP y por email) y lo persistente queda en audit_events. Trade-off que
+se defiende solo: al escalar a varias replicas se cambia el store en memoria
+por Redis detras de una interface, sin tocar los services.
+
+
+--------------------------------------------------------------------------------
+10. FLUJOS
+--------------------------------------------------------------------------------
+
+REGISTRO: POST /auth/register {email, password}
+  - Valida con zod (email, password >= 12 con clases de caracteres).
+  - Hash argon2id, inserta user, emite evento register.
+  - Devuelve 201 SIN tokens (hay que loguearse despues: un paso, una
+    responsabilidad).
+
+LOGIN SIN MFA: POST /auth/login {email, password}
+  - Busca user, compara argon2id.
+  - Si mfa_enabled = false: emite access JWT (15 min, claims sub, role,
+    mfa:false) + refresh opaco (32 bytes aleatorios, se guarda su hash).
+  - El error siempre es generico ("credenciales invalidas") para no revelar
+    si el email existe. Emite login_success / login_failure.
+
+LOGIN CON MFA (dos pasos, nunca sesion completa antes del 2do factor):
+  - Paso 1: igual que arriba, pero si mfa_enabled = true devuelve
+    { mfa_required: true, mfa_ticket }, donde el ticket es un JWT de 5 min
+    con scope "mfa" que NO autoriza nada mas.
+  - Paso 2: POST /auth/mfa/verify {ticket, code} -> verifica TOTP
+    (ventana +-1 paso) -> emite tokens con mfa:true.
+
+REFRESH CON ROTACION: POST /auth/refresh {refresh_token}
+  - Hashea, busca, valida no revocado / no expirado.
+  - Revoca el viejo (revoked_at + replaced_by = nuevo), crea el nuevo,
+    devuelve el par nuevo.
+  - REUTILIZACION (= posible robo): si llega un token ya rotado, se revoca
+    la FAMILIA ENTERA y se emite refresh_reuse_detected. Momento estrella
+    de la defensa.
+
+ALTA DE MFA (autenticado):
+  - POST /mfa/setup -> genera secret, devuelve otpauth:// + secret.
+  - POST /mfa/confirm {code} -> verifica -> mfa_enabled = true + genera
+    10 recovery codes (en claro UNA vez) -> evento mfa_enabled.
+
+RBAC:
+  - Middlewares: requireAuth (verifica JWT) + requireRole('admin') +
+    requireMfa (para rutas sensibles).
+  - Ejemplo: GET /users/me (autenticado), GET /admin/users (admin + MFA).
+
+
+--------------------------------------------------------------------------------
+11. MANEJO DE ERRORES
+--------------------------------------------------------------------------------
+
+Todo error del dominio hereda de AppError { statusCode, code, message }.
+Solo existen estos, sin inventar nuevos por endpoint:
+
+  ValidationError .. 400 validation_error .... zod falla (details por campo)
+  AuthError ........ 401 invalid_credentials . login o MFA fallan, mensaje
+                                               siempre generico
+  ForbiddenError ... 403 forbidden/mfa_required  sin rol, o ruta que exige
+                                               mfa:true
+  NotFoundError .... 404 not_found ........... recurso propio inexistente
+  ConflictError .... 409 email_taken ......... registro con email duplicado
+                                               (mapea el 23505 de Postgres)
+  RateLimitError ... 429 rate_limited ........ con header Retry-After
+  InternalError .... 500 internal_error ...... todo lo demas, mensaje fijo
+                                               "error interno"
+
+DECISION 1 - El login miente por diseno. "Email no existe", "password mal"
+o "codigo MFA mal" devuelven el mismo 401 generico. Lo unico que distingue
+es el audit_event interno. En registro SI se devuelve 409 (revela existencia,
+pero registrarse revela por naturaleza: trade-off documentado, no descuido).
+
+DECISION 2 - El cliente nunca ve el interior. Respuesta:
+{ error: { code, message } }, sin stack, sin SQL, sin detalles crudos.
+Al log va lo contrario: stack + requestId + ip + contexto, pero NUNCA
+password, tokens, secrets TOTP ni recovery codes en claro. La lista de
+campos prohibidos en logs va escrita en el codigo del logger.
+
+DECISION 3 - Un solo errorHandler central. Las routes no hacen try/catch;
+usan asyncHandler y el middleware final traduce: AppError -> su status,
+zod -> 400, 23505 de pg -> 409, lo demas -> 500. Cada request lleva un
+requestId que aparece en la respuesta (header) y en los logs.
+
+
+--------------------------------------------------------------------------------
+12. ESTRATEGIA DE TESTING
+--------------------------------------------------------------------------------
+
+UNITARIOS (la base): cada service.ts contra un FAKE EN MEMORIA que implementa
+su repository (posible gracias a la Regla 1, sin base de datos). Casos que
+si o si existen: registro ok / email duplicado, login ok / password mal /
+usuario inactivo, refresh valido / expirado / REUTILIZADO -> revoca familia,
+TOTP valido / invalido / fuera de ventana, recovery code de un solo uso,
+matriz RBAC (user vs admin, con/sin MFA).
+
+INTEGRACION (pocos, los que importan): supertest contra la app real +
+Postgres efimero, con migraciones reales. Cubren: register -> login ->
+refresh -> logout end-to-end, setup MFA completo, rate limit dispara 429,
+y pruebas de NO-FILTRACION: el hash nunca sale en respuestas, el refresh
+se guarda hasheado, un 500 no expone stack.
+
+LO QUE NO SE TESTEA: las librerias (argon2, jsonwebtoken, otplib). Se
+testea nuestro uso, no su cripto. Las routes son delgadas por diseno y no
+llevan unitarios propios: se cubren por integracion.
+
+PRACTICO: argon2id con parametros bajos en tests (rapido) y OWASP en prod.
+npm test (unit, sin Docker) vs npm run test:integration (con Docker).
+Objetivo: services 90%+, routes via integracion.
+
+
+--------------------------------------------------------------------------------
+13. DESPLIEGUE: DOCKER LOCAL AHORA, ENDURECIMIENTO DESPUES
+--------------------------------------------------------------------------------
+
+DOCKERFILE MULTI-STAGE (tres etapas):
+  1. deps .... instala dependencias con lockfile (npm ci, nada flotante).
+  2. build ... compila TypeScript; el fuente no queda en la imagen final.
+  3. runtime . solo node + dist/ + node_modules de produccion.
+  - Imagen base node:22-slim (NO alpine: evita sorpresas con argon2 nativo).
+  - Usuario NO-ROOT (USER node). La API nunca corre como root, ni en local:
+    el habito se instala desde el dia uno.
+
+DOCKER-COMPOSE (tres servicios):
+  - api ..... la aplicacion. Unico servicio con puerto publicado al host.
+  - db ...... postgres:16, volumen nombrado (persistencia).
+  - mailpit . SMTP falso; hoy solo ocupa su lugar en la red para el futuro
+              flujo de recuperacion de contrasena.
+  - Red dedicada app-net. Healthchecks en db (pg_isready) y api (/health),
+    con depends_on service_healthy para un arranque determinista.
+
+CONFIGURACION (config/env.ts, validacion con zod al arrancar):
+  - DATABASE_URL, JWT_SECRET (>= 32 bytes, se rechaza el valor de ejemplo),
+    ACCESS_TTL, REFRESH_TTL, ARGON_*, RATE_LIMIT_*.
+  - Si falta algo o es inseguro, el proceso MUERE con mensaje claro en vez
+    de arrancar degradado.
+  - .env real JAMAS se commitea; solo .env.example con valores falsos.
+  - Los secretos viajan por entorno, nunca en el codigo ni en la imagen.
+
+RUTA DE ENDURECIMIENTO (fase 2, SIN reescribir src/, cada capa es un punto
+de la defensa futura):
+  1. Secretos fuera del .env: el mismo env.ts lee de archivo (*_FILE, estilo
+     Docker Swarm) o de un gestor (Vault/Infisical). Cambia el origen, no
+     el codigo.
+  2. Red y TLS: reverse proxy (Caddy/Traefik) delante con TLS automatico y
+     headers (HSTS, X-Content-Type-Options, Referrer-Policy). La API deja de
+     publicar puertos. En Compose es un servicio mas; en la VM es la puerta.
+  3. Kubernetes (k8s/, cuando exista la VM): los manifests replican lo que
+     Compose ya hace. Deployment (imagen no-root + readOnlyRootFilesystem +
+     limites de CPU/mem), NetworkPolicy (solo api -> db), Secrets (nunca en
+     git), Ingress + cert-manager. Argumento de defensa: "misma app, dos
+     objetivos de despliegue; la seguridad esta en la envoltura, el codigo
+     no cambio".
+  4. docs/security.md y runbook.md: modelo de amenazas (que atacantes se
+     consideran, que queda fuera) y runbook (migraciones, backup del volumen,
+     rotacion de JWT_SECRET con doble firma para no voltear sesiones). Esto
+     convierte "use Docker" en "opere un servicio".
+
+
+--------------------------------------------------------------------------------
+14. MODELO DE AMENAZAS Y REGLAS DE SEGURIDAD (vive en docs/security.md)
+--------------------------------------------------------------------------------
+
+ATACANTES CONSIDERADOS:
+  1. Fuerza bruta / credential stuffing -> rate limiting (IP + email, 429 con
+     Retry-After), bloqueo temporal, argon2id que hace cada intento caro en
+     CPU. login_failure en auditoria permite detectar campanas.
+  2. Robo de base de datos -> el atacante obtiene hashes, nunca secretos
+     utiles: passwords con argon2id + sal unica, refresh tokens solo como
+     SHA-256 (inutiles sin el token original), recovery codes hasheados. Lo
+     unico en claro es el seed TOTP (deuda explicita, ver seccion 9).
+  3. Robo de refresh token -> rotacion con deteccion de reutilizacion: el
+     primer reuso revoca la familia entera y dispara refresh_reuse_detected.
+     Ventana de abuso acotada al TTL del access (15 min).
+  4. Enumeracion de usuarios -> login y MFA con errores genericos identicos;
+     el 409 de registro es el unico trade-off aceptado y documentado.
+  5. Token forjado / manipulado -> JWT firmados con secreto >= 32 bytes
+     validado al arranque; mfa_ticket con scope restringido que no autoriza
+     nada fuera del paso 2.
+
+EXPLICITAMENTE FUERA DE ALCANCE (decirlo tambien suma puntos):
+  - Phishing y malware en el dispositivo del usuario (se mitiga con WebAuthn,
+    fase futura).
+  - Ataques a la infraestructura de la VM (fase 2 de hardening).
+  - DoS volumetrico (el rate limiting es anti-abuso, no anti-DDoS).
+
+REGLAS DE SEGURIDAD DEL CODIGO (el jurado puede verificarlas):
+  - Ningun secreto en git: .env ignorado, solo .env.example falso.
+  - Ningun secreto en logs: lista de campos prohibidos en el logger + test.
+  - Ningun secreto en respuestas: test de no-filtracion en integracion.
+  - Dependencias con lockfile + npm audit; imagen sin codigo fuente.
+
+
+================================================================================
