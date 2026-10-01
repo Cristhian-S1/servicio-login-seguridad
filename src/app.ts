@@ -16,11 +16,15 @@ import { sessionsRoutes } from "./modules/sessions/sessions.routes";
 import { PgMfaRepository } from "./modules/mfa/mfa.pg-repository";
 import { MfaService } from "./modules/mfa/mfa.service";
 import { mfaRoutes } from "./modules/mfa/mfa.routes";
+import { UsersService } from "./modules/users/users.service";
+import { PgUsersRepository } from "./modules/users/users.pg-repository";
+import { adminRoutes, usersRoutes } from "./modules/users/users.routes";
 
 export interface AppDeps {
   authService: AuthService;
   sessionsService: SessionsService;
   mfaService: MfaService;
+  usersService: UsersService;
 }
 
 function realDeps(): AppDeps {
@@ -29,11 +33,12 @@ function realDeps(): AppDeps {
   const users = new PgAuthRepository(pool);
   const sessionsService = new SessionsService(new PgSessionsRepository(pool), users, audit);
   const mfaService = new MfaService(new PgMfaRepository(pool), users, sessionsService, audit);
-  return { authService: new AuthService(users, audit, sessionsService), sessionsService, mfaService };
+  const usersService = new UsersService(new PgUsersRepository(pool));
+  return { authService: new AuthService(users, audit, sessionsService), sessionsService, mfaService, usersService };
 }
 
 export function createApp(deps?: Partial<AppDeps>): express.Express {
-  const { authService, sessionsService, mfaService } = { ...realDeps(), ...deps };
+  const { authService, sessionsService, mfaService, usersService } = { ...realDeps(), ...deps };
   const app = express();
   app.use(helmet());
   app.use(express.json({ limit: "100kb" }));
@@ -49,6 +54,8 @@ export function createApp(deps?: Partial<AppDeps>): express.Express {
   app.use("/auth", authRoutes(authService, mfaService));
   app.use("/auth", sessionsRoutes(sessionsService));
   app.use("/mfa", mfaRoutes(mfaService));
+  app.use("/users", usersRoutes(usersService));
+  app.use("/admin", adminRoutes(usersService));
 
   app.use((_req, _res, next) => next(new NotFoundError("Ruta no encontrada")));
   app.use(errorHandler);
