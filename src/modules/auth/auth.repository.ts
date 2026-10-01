@@ -10,4 +10,5 @@ export interface AuthRepository {
   findByEmail(email: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
   create(input: NewUser): Promise<PublicUser & { password_hash: string }>;
+  setMfaEnabled(id: string, enabled: boolean): Promise<void>;
 }

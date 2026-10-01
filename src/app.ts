@@ -13,10 +13,14 @@ import { authRoutes } from "./modules/auth/auth.routes";
 import { PgSessionsRepository } from "./modules/sessions/sessions.pg-repository";
 import { SessionsService } from "./modules/sessions/sessions.service";
 import { sessionsRoutes } from "./modules/sessions/sessions.routes";
+import { PgMfaRepository } from "./modules/mfa/mfa.pg-repository";
+import { MfaService } from "./modules/mfa/mfa.service";
+import { mfaRoutes } from "./modules/mfa/mfa.routes";
 
 export interface AppDeps {
   authService: AuthService;
   sessionsService: SessionsService;
+  mfaService: MfaService;
 }
 
 function realDeps(): AppDeps {
@@ -24,11 +28,12 @@ function realDeps(): AppDeps {
   const audit = new AuditService(new PgAuditRepository(pool));
   const users = new PgAuthRepository(pool);
   const sessionsService = new SessionsService(new PgSessionsRepository(pool), users, audit);
-  return { authService: new AuthService(users, audit, sessionsService), sessionsService };
+  const mfaService = new MfaService(new PgMfaRepository(pool), users, sessionsService, audit);
+  return { authService: new AuthService(users, audit, sessionsService), sessionsService, mfaService };
 }
 
 export function createApp(deps?: Partial<AppDeps>): express.Express {
-  const { authService, sessionsService } = { ...realDeps(), ...deps };
+  const { authService, sessionsService, mfaService } = { ...realDeps(), ...deps };
   const app = express();
   app.use(helmet());
   app.use(express.json({ limit: "100kb" }));
@@ -41,8 +46,9 @@ export function createApp(deps?: Partial<AppDeps>): express.Express {
     }),
   );
 
-  app.use("/auth", authRoutes(authService));
+  app.use("/auth", authRoutes(authService, mfaService));
   app.use("/auth", sessionsRoutes(sessionsService));
+  app.use("/mfa", mfaRoutes(mfaService));
 
   app.use((_req, _res, next) => next(new NotFoundError("Ruta no encontrada")));
   app.use(errorHandler);

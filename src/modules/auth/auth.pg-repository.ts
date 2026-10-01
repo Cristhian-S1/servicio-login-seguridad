@@ -35,4 +35,8 @@ export class PgAuthRepository implements AuthRepository {
     );
     return { id: String(rows[0].id), email: String(rows[0].email), password_hash: String(rows[0].password_hash) };
   }
+
+  async setMfaEnabled(id: string, enabled: boolean): Promise<void> {
+    await this.db.query("UPDATE users SET mfa_enabled = $2, updated_at = now() WHERE id = $1", [id, enabled]);
+  }
 }

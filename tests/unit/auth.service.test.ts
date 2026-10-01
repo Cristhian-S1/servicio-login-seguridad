@@ -18,11 +18,13 @@ function setup(existing: Array<{ email: string }> = []) {
   }));
   const repo: AuthRepository = {
     findByEmail: vi.fn(async (email: string) => users.find((u) => u.email === email) ?? null),
+    findById: vi.fn(async () => null),
     create: vi.fn(async (input: NewUser) => {
       const row = { id: `id-${users.length}`, email: input.email, password_hash: input.password_hash };
       users.push(row);
       return row;
     }),
+    setMfaEnabled: vi.fn(async () => {}),
   };
   const audit = new AuditService({ append: vi.fn(async () => {}) });
   const sessions = { createSession: vi.fn(), refresh: vi.fn(), logout: vi.fn() } as unknown as SessionsService;

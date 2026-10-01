@@ -60,6 +60,7 @@ function setup() {
     create: vi.fn(async () => {
       throw new Error("not used");
     }),
+    setMfaEnabled: vi.fn(async () => {}),
   };
   const audit = new AuditService({ append: vi.fn(async () => {}) });
   const record = vi.spyOn(audit, "record");

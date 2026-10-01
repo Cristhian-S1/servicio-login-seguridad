@@ -28,6 +28,7 @@ function setup(users: User[]) {
     create: vi.fn(async () => {
       throw new Error("not used");
     }),
+    setMfaEnabled: vi.fn(async () => {}),
   };
   const sessions = {
     createSession: vi.fn(async (_userId: string, _ip: string | null) => ({ refreshToken: "RAW-REFRESH" })),
