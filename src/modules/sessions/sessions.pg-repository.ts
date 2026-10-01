@@ -42,4 +42,14 @@ export class PgSessionsRepository implements SessionsRepository {
       userId,
     ]);
   }
+
+  async rotate(tokenHash: string, replacedBy: string): Promise<RefreshTokenRow | null> {
+    const { rows } = await this.db.query(
+      `UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2
+       WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()
+       RETURNING *`,
+      [tokenHash, replacedBy],
+    );
+    return rows.length === 0 ? null : toRow(rows[0]);
+  }
 }

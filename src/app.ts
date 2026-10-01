@@ -11,20 +11,24 @@ import { PgAuthRepository } from "./modules/auth/auth.pg-repository";
 import { AuthService } from "./modules/auth/auth.service";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { PgSessionsRepository } from "./modules/sessions/sessions.pg-repository";
+import { SessionsService } from "./modules/sessions/sessions.service";
+import { sessionsRoutes } from "./modules/sessions/sessions.routes";
 
 export interface AppDeps {
   authService: AuthService;
+  sessionsService: SessionsService;
 }
 
 function realDeps(): AppDeps {
   const pool = getPool();
   const audit = new AuditService(new PgAuditRepository(pool));
-  const sessions = new PgSessionsRepository(pool);
-  return { authService: new AuthService(new PgAuthRepository(pool), audit, sessions) };
+  const users = new PgAuthRepository(pool);
+  const sessionsService = new SessionsService(new PgSessionsRepository(pool), users, audit);
+  return { authService: new AuthService(users, audit, sessionsService), sessionsService };
 }
 
 export function createApp(deps?: Partial<AppDeps>): express.Express {
-  const { authService } = { ...realDeps(), ...deps };
+  const { authService, sessionsService } = { ...realDeps(), ...deps };
   const app = express();
   app.use(helmet());
   app.use(express.json({ limit: "100kb" }));
@@ -38,6 +42,7 @@ export function createApp(deps?: Partial<AppDeps>): express.Express {
   );
 
   app.use("/auth", authRoutes(authService));
+  app.use("/auth", sessionsRoutes(sessionsService));
 
   app.use((_req, _res, next) => next(new NotFoundError("Ruta no encontrada")));
   app.use(errorHandler);

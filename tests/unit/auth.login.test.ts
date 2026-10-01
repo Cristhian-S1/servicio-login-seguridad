@@ -4,8 +4,9 @@ import { AuditService } from "../../src/modules/audit/audit.service";
 import { AuthError } from "../../src/shared/errors";
 import { verifyToken } from "../../src/shared/crypto/jwt";
 import { hashPassword } from "../../src/shared/crypto/password";
+import type { SessionsService } from "../../src/modules/sessions/sessions.service";
 import type { AuthRepository } from "../../src/modules/auth/auth.repository";
-import type { SessionsRepository } from "../../src/modules/sessions/sessions.repository";
+import type { SessionsService } from "../../src/modules/sessions/sessions.service";
 import type { User } from "../../src/modules/auth/auth.types";
 
 process.env.JWT_SECRET ??= "b".repeat(32);
@@ -28,12 +29,13 @@ function setup(users: User[]) {
       throw new Error("not used");
     }),
   };
-  const sessions: SessionsRepository = {
-    save: vi.fn(async () => {}),
-    findByHash: vi.fn(async () => null),
-    revoke: vi.fn(async () => {}),
-    revokeFamily: vi.fn(async () => {}),
-  };
+  const sessions = {
+    createSession: vi.fn(async (_userId: string, _ip: string | null) => ({ refreshToken: "RAW-REFRESH" })),
+    refresh: vi.fn(async () => {
+      throw new Error("not used");
+    }),
+    logout: vi.fn(async () => {}),
+  } as unknown as SessionsService;
   const audit = new AuditService({ append: vi.fn(async () => {}) });
   const record = vi.spyOn(audit, "record");
   return { svc: new AuthService(repo, audit, sessions), sessions, record };
@@ -52,14 +54,12 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 describe("AuthService.login", () => {
-  it("returns access + refresh tokens and persists only the hash", async () => {
+  it("returns access + refresh tokens delegating the session", async () => {
     const { svc, sessions } = setup([makeUser()]);
     const out = await svc.login({ email: "USER@example.com ", password: PASSWORD, ip: "1.1.1.1" });
     expect(out).toHaveProperty("accessToken");
-    expect(out).toHaveProperty("refreshToken");
-    expect(sessions.save).toHaveBeenCalledOnce();
-    const saved = (sessions.save as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(saved.token_hash).not.toContain((out as { refreshToken: string }).refreshToken);
+    expect(out).toEqual(expect.objectContaining({ refreshToken: "RAW-REFRESH" }));
+    expect(sessions.createSession).toHaveBeenCalledWith("u-1", "1.1.1.1");
   });
 
   it("throws identical AuthError for wrong password and unknown email", async () => {

@@ -7,11 +7,13 @@ import { createApp } from "../../src/app";
 import { runMigrations } from "../../src/shared/db/migrate";
 import { PgAuthRepository } from "../../src/modules/auth/auth.pg-repository";
 import { PgSessionsRepository } from "../../src/modules/sessions/sessions.pg-repository";
+import { PgSessionsRepository } from "../../src/modules/sessions/sessions.pg-repository";
 import { PgAuditRepository } from "../../src/modules/audit/audit.pg-repository";
 import { AuditService } from "../../src/modules/audit/audit.service";
 import { AuthService } from "../../src/modules/auth/auth.service";
 import { requireAuth } from "../../src/shared/http/requireAuth";
 import { errorHandler } from "../../src/shared/http/errorHandler";
+import { SessionsService } from "../../src/modules/sessions/sessions.service";
 
 process.env.DATABASE_URL ??= "postgresql://user:pass@localhost:5432/login";
 process.env.JWT_SECRET ??= "a".repeat(32);
@@ -32,8 +34,10 @@ beforeAll(async () => {
   poolEnd = () => pool.end();
   await runMigrations(pool);
   const audit = new AuditService(new PgAuditRepository(pool));
-  const auth = new AuthService(new PgAuthRepository(pool), audit, new PgSessionsRepository(pool));
-  app = createApp({ authService: auth });
+  const users = new PgAuthRepository(pool);
+  const sessions = new SessionsService(new PgSessionsRepository(pool), users, audit);
+  const auth = new AuthService(users, audit, sessions);
+  app = createApp({ authService: auth, sessionsService: sessions });
   // probe app exists only in tests, to exercise requireAuth
   probe = express();
   probe.use(helmet());

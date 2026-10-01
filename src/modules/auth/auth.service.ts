@@ -1,24 +1,20 @@
-import { randomBytes, randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { AuditService } from "../audit/audit.service";
 import { AuthError, ConflictError } from "../../shared/errors";
 import { hashPassword, verifyPassword } from "../../shared/crypto/password";
 import { issueMfaTicket, signAccessToken } from "../../shared/crypto/jwt";
 import type { AuthRepository } from "./auth.repository";
-import type { SessionsRepository } from "../sessions/sessions.repository";
+import type { SessionsService } from "../sessions/sessions.service";
 import type { PublicUser } from "./auth.types";
 import type { LoginInput, RegisterInput } from "./auth.schema";
 
 export type LoginResult = { accessToken: string; refreshToken: string } | { mfaRequired: true; mfaTicket: string };
 
-function refreshTtlDays(): number {
-  return Number(process.env.REFRESH_TTL_DAYS ?? 30);
-}
-
 export class AuthService {
   constructor(
     private readonly repo: AuthRepository,
     private readonly audit: AuditService,
-    private readonly sessions?: SessionsRepository,
+    private readonly sessions: SessionsService,
   ) {}
 
   async register(input: RegisterInput): Promise<PublicUser> {
@@ -55,14 +51,7 @@ export class AuthService {
       return { mfaRequired: true, mfaTicket: issueMfaTicket(user.id) };
     }
     if (!this.sessions) throw new AuthError();
-    const refreshToken = randomBytes(32).toString("base64url");
-    await this.sessions.save({
-      id: randomUUID(),
-      user_id: user.id,
-      token_hash: createHash("sha256").update(refreshToken).digest("hex"),
-      expires_at: new Date(Date.now() + refreshTtlDays() * 24 * 60 * 60 * 1000),
-      ip: input.ip ?? null,
-    });
+    const { refreshToken } = await this.sessions.createSession(user.id, input.ip ?? null);
     await this.audit.record("login_success", { userId: user.id, ip: input.ip ?? null });
     return {
       accessToken: signAccessToken({ sub: user.id, role: user.role, mfa: false }),
