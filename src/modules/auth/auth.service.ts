@@ -1,15 +1,24 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { AuditService } from "../audit/audit.service";
-import { ConflictError } from "../../shared/errors";
-import { hashPassword } from "../../shared/crypto/password";
+import { AuthError, ConflictError } from "../../shared/errors";
+import { hashPassword, verifyPassword } from "../../shared/crypto/password";
+import { issueMfaTicket, signAccessToken } from "../../shared/crypto/jwt";
 import type { AuthRepository } from "./auth.repository";
+import type { SessionsRepository } from "../sessions/sessions.repository";
 import type { PublicUser } from "./auth.types";
-import type { RegisterInput } from "./auth.schema";
+import type { LoginInput, RegisterInput } from "./auth.schema";
+
+export type LoginResult = { accessToken: string; refreshToken: string } | { mfaRequired: true; mfaTicket: string };
+
+function refreshTtlDays(): number {
+  return Number(process.env.REFRESH_TTL_DAYS ?? 30);
+}
 
 export class AuthService {
   constructor(
     private readonly repo: AuthRepository,
     private readonly audit: AuditService,
+    private readonly sessions?: SessionsRepository,
   ) {}
 
   async register(input: RegisterInput): Promise<PublicUser> {
@@ -31,5 +40,33 @@ export class AuthService {
     }
     await this.audit.record("register", { userId: created.id });
     return { id: created.id, email: created.email };
+  }
+
+  async login(input: LoginInput & { ip?: string | null }): Promise<LoginResult> {
+    const fail = async (userId?: string): Promise<never> => {
+      await this.audit.record("login_failure", { userId, ip: input.ip ?? null });
+      throw new AuthError();
+    };
+    const email = input.email.trim().toLowerCase();
+    const user = await this.repo.findByEmail(email);
+    if (!user || !user.is_active) return fail(user?.id);
+    if (!(await verifyPassword(user.password_hash, input.password))) return fail(user.id);
+    if (user.mfa_enabled) {
+      return { mfaRequired: true, mfaTicket: issueMfaTicket(user.id) };
+    }
+    if (!this.sessions) throw new AuthError();
+    const refreshToken = randomBytes(32).toString("base64url");
+    await this.sessions.save({
+      id: randomUUID(),
+      user_id: user.id,
+      token_hash: createHash("sha256").update(refreshToken).digest("hex"),
+      expires_at: new Date(Date.now() + refreshTtlDays() * 24 * 60 * 60 * 1000),
+      ip: input.ip ?? null,
+    });
+    await this.audit.record("login_success", { userId: user.id, ip: input.ip ?? null });
+    return {
+      accessToken: signAccessToken({ sub: user.id, role: user.role, mfa: false }),
+      refreshToken,
+    };
   }
 }

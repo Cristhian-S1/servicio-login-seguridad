@@ -10,6 +10,7 @@ import { AuditService } from "./modules/audit/audit.service";
 import { PgAuthRepository } from "./modules/auth/auth.pg-repository";
 import { AuthService } from "./modules/auth/auth.service";
 import { authRoutes } from "./modules/auth/auth.routes";
+import { PgSessionsRepository } from "./modules/sessions/sessions.pg-repository";
 
 export interface AppDeps {
   authService: AuthService;
@@ -18,7 +19,8 @@ export interface AppDeps {
 function realDeps(): AppDeps {
   const pool = getPool();
   const audit = new AuditService(new PgAuditRepository(pool));
-  return { authService: new AuthService(new PgAuthRepository(pool), audit) };
+  const sessions = new PgSessionsRepository(pool);
+  return { authService: new AuthService(new PgAuthRepository(pool), audit, sessions) };
 }
 
 export function createApp(deps?: Partial<AppDeps>): express.Express {
