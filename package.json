@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts"
   },
   "dependencies": {
+    "argon2": "^0.45.1",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
     "pg": "^8.23.1",
