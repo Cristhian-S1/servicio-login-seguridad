@@ -5,9 +5,16 @@ import type { Db } from "./pool";
 export const MIGRATIONS_DIR = join(__dirname, "migrations");
 
 export async function runMigrations(db: Db, dir: string = MIGRATIONS_DIR): Promise<string[]> {
-  await db.query(
-    "CREATE TABLE IF NOT EXISTS schema_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
-  );
+  try {
+    await db.query(
+      "CREATE TABLE schema_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
+    );
+  } catch (err) {
+    // 42P07 = duplicate_table (real PG). pg-mem omite el code y manda solo el mensaje.
+    const code = (err as { code?: string }).code;
+    const message = err instanceof Error ? err.message : String(err);
+    if (code !== "42P07" && !/already exists/i.test(message)) throw err;
+  }
   const applied = await db.query("SELECT filename FROM schema_migrations");
   const done = new Set(applied.rows.map((r) => String(r.filename)));
   const files = readdirSync(dir)
