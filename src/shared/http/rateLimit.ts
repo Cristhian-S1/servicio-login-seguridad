@@ -1,4 +1,4 @@
-import { rateLimit } from "express-rate-limit";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { RateLimitError } from "../errors";
 
 export interface LimiterOpts {
@@ -24,7 +24,7 @@ export function loginLimiter(opts: LimiterOpts = fromEnv("LOGIN", { max: 5, wind
   return rateLimit({
     windowMs: opts.windowMs,
     limit: opts.max,
-    keyGenerator: (req) => `${req.ip}:${String(req.body?.email ?? "").trim().toLowerCase()}`,
+    keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? "")}:${String(req.body?.email ?? "").trim().toLowerCase()}`,
     handler: handler(opts.windowMs),
     standardHeaders: false,
     legacyHeaders: false,
@@ -36,7 +36,7 @@ export function mfaVerifyLimiter(opts: LimiterOpts = fromEnv("LOGIN", { max: 5, 
   return rateLimit({
     windowMs: opts.windowMs,
     limit: opts.max,
-    keyGenerator: (req) => String(req.ip),
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
     handler: handler(opts.windowMs),
     standardHeaders: false,
     legacyHeaders: false,
@@ -49,7 +49,7 @@ export function globalLimiter(
   return rateLimit({
     windowMs: opts.windowMs,
     limit: opts.max,
-    keyGenerator: (req) => String(req.ip),
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
     handler: handler(opts.windowMs),
     standardHeaders: false,
     legacyHeaders: false,

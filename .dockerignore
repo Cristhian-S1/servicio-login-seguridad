@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.git/
+.env
+.superpowers/
+coverage/
+tests/
+npm-debug.log

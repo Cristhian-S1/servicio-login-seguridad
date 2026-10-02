@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Servicio de autenticacion: registro, JWT, refresh rotativo, MFA TOTP, RBAC",
-  "main": "dist/server.js",
+  "main": "dist/src/server.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.json && cp -r src/shared/db/migrations dist/src/shared/db/migrations",
+    "start": "node dist/src/server.js",
     "dev": "tsx src/server.ts",
     "test": "vitest run",
     "db:migrate": "tsx scripts/migrate.ts"

@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: login
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerido en .env}
+      POSTGRES_DB: login
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U login -d login"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app-net
+
+  api:
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://login:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerido en .env}@db:5432/login
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido en .env}
+      ACCESS_TTL_MINUTES: ${ACCESS_TTL_MINUTES:-15}
+      REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-30}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  mailpit:
+    image: axllent/mailpit
+    networks:
+      - app-net
+
+volumes:
+  pgdata:
+
+networks:
+  app-net:
