@@ -55,7 +55,7 @@ function setup() {
   const audit = new AuditService({ append: vi.fn(async () => {}) });
   const record = vi.spyOn(audit, "record");
   const svc = new MfaService(repo, users, sessions, audit);
-  return { svc, record, codes, isEnabled: () => mfaEnabled };
+  return { svc, record, codes, sessions, isEnabled: () => mfaEnabled };
 }
 
 describe("MfaService", () => {
@@ -68,12 +68,19 @@ describe("MfaService", () => {
   });
 
   it("confirm with a valid code enables mfa and returns 10 recovery codes", async () => {
-    const { svc, isEnabled } = setup();
+    const { svc, isEnabled, record } = setup();
     const { secret } = await svc.setup("u-1");
     const { recoveryCodes } = await svc.confirm("u-1", generateCode(secret));
     expect(recoveryCodes).toHaveLength(10);
     expect(new Set(recoveryCodes).size).toBe(10);
     expect(isEnabled()).toBe(true);
+  });
+
+  it("confirm revokes pre-MFA sessions so old refresh tokens cannot upgrade to mfa:true", async () => {
+    const { svc, sessions } = setup();
+    const { secret } = await svc.setup("u-1");
+    await svc.confirm("u-1", generateCode(secret));
+    expect(sessions.logout).toHaveBeenCalledWith("u-1");
   });
 
   it("confirm with a wrong code throws AuthError and audits mfa_failure", async () => {

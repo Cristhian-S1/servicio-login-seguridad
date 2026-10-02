@@ -25,7 +25,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   }
   try {
     const payload = verifyToken(token);
-    if (typeof payload.sub !== "string") throw new AuthError();
+    if (typeof payload.sub !== "string" || payload.scope === "mfa") throw new AuthError();
     req.user = {
       sub: payload.sub,
       role: payload.role === "admin" ? "admin" : "user",

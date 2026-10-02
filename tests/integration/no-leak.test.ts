@@ -56,4 +56,12 @@ describe("stored secrets are hashes, never raw values", () => {
     expect(users[0].password_hash).not.toContain("Str0ng!Passw0rd");
     expect(String(users[0].password_hash)).toMatch(/^\$argon2id\$/);
   });
+
+  it("an oversized JSON body is rejected without a 500", async () => {
+    const res = await request(app)
+      .post("/auth/register")
+      .send({ email: "big@example.com", password: "x".repeat(200 * 1024) });
+    expect(res.status).toBe(413);
+    expect(res.body.error.code).toBe("validation_error");
+  });
 });

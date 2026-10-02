@@ -44,4 +44,46 @@ describe("no-leak contract", () => {
     });
     expect(out.nested).toMatchObject({ token: "[REDACTED]", code: "[REDACTED]", ok: 1 });
   });
+
+  it("sanitize redacts the field names this API actually uses", () => {
+    const out = sanitize({
+      id: "u-1",
+      email: "a@example.com",
+      role: "user",
+      mfa_enabled: false,
+      refreshToken: "raw",
+      accessToken: "raw",
+      mfaTicket: "raw",
+      recoveryCodes: ["raw"],
+      password_hash: "raw",
+      refresh_token: "raw",
+    }) as Record<string, unknown>;
+    expect(out).toMatchObject({
+      id: "u-1",
+      email: "a@example.com",
+      role: "user",
+      mfa_enabled: false,
+      refreshToken: "[REDACTED]",
+      accessToken: "[REDACTED]",
+      mfaTicket: "[REDACTED]",
+      recoveryCodes: "[REDACTED]",
+      password_hash: "[REDACTED]",
+      refresh_token: "[REDACTED]",
+    });
+  });
+
+  it("maps body-parser errors to their status without leaking", () => {
+    for (const [status, type] of [
+      [413, "entity.too.large"],
+      [400, "entity.parse.failed"],
+    ] as const) {
+      const { state, res: response } = res();
+      const err = new SyntaxError("body parser failed") as SyntaxError & { status: number; type: string };
+      err.status = status;
+      err.type = type;
+      errorHandler(err, {} as Request, response, (() => {}) as NextFunction);
+      expect(state.statusCode).toBe(status);
+      expect(state.body).toEqual({ error: { code: "validation_error", message: expect.any(String) } });
+    }
+  });
 });

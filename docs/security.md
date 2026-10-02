@@ -32,6 +32,8 @@ Deuda: el seed TOTP esta aislado en su propia tabla para cifrarlo despues
   y se audita `refresh_reuse_detected` (`src/modules/sessions/sessions.service.ts`).
 - Reutilizacion reciente = carrera legitima: falla cerrado (401) SIN nukear.
 - Ventana de abuso acotada al TTL del access (15 min).
+- Activar MFA revoca las sesiones pre-existentes: los refresh emitidos antes
+  del alta nunca rinden `mfa:true` (`MfaService.confirm` fuerza re-login).
 
 ## 4. Enumeracion de usuarios
 

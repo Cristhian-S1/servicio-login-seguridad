@@ -28,6 +28,18 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
+  const bodyStatus = (err as { status?: unknown }).status;
+  const bodyType = (err as { type?: unknown }).type;
+  if (
+    typeof bodyStatus === "number" &&
+    (bodyStatus === 400 || bodyStatus === 413) &&
+    (err instanceof SyntaxError || typeof bodyType === "string")
+  ) {
+    const message = bodyStatus === 413 ? "Cuerpo demasiado grande" : "Cuerpo JSON invalido";
+    res.status(bodyStatus).json({ error: { code: "validation_error", message } });
+    return;
+  }
+
   logger.error("unhandled error", { method: req.method, path: req.path, err });
   const fallback = new InternalError();
   res.status(fallback.statusCode).json({ error: { code: fallback.code, message: fallback.message } });

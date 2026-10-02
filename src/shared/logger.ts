@@ -1,8 +1,11 @@
 const REDACTED = "[REDACTED]";
-const SENSITIVE_KEYS = new Set(["password", "token", "secret", "code", "authorization"]);
+// Substrings: cubre refreshToken, accessToken, mfaTicket, recoveryCodes,
+// password_hash, authorization y cualquier variante futura con esos nombres.
+const SENSITIVE_SUBSTRINGS = ["password", "token", "secret", "code", "auth", "hash", "recovery", "ticket"];
 
 function isSensitive(key: string): boolean {
-  return SENSITIVE_KEYS.has(key.toLowerCase());
+  const lower = key.toLowerCase();
+  return SENSITIVE_SUBSTRINGS.some((s) => lower.includes(s));
 }
 
 export function sanitize(value: unknown): unknown {

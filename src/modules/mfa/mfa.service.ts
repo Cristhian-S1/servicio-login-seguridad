@@ -45,6 +45,9 @@ export class MfaService {
       }),
     );
     await this.users.setMfaEnabled(userId, true);
+    // Las sesiones emitidas antes del alta no pasaron el 2do factor:
+    // se revocan para que el proximo login atraviese el paso MFA.
+    await this.sessions.logout(userId);
     await this.audit.record("mfa_enabled", { userId });
     return { recoveryCodes };
   }

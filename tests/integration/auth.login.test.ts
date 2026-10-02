@@ -14,6 +14,7 @@ import { AuthService } from "../../src/modules/auth/auth.service";
 import { requireAuth } from "../../src/shared/http/requireAuth";
 import { errorHandler } from "../../src/shared/http/errorHandler";
 import { SessionsService } from "../../src/modules/sessions/sessions.service";
+import { issueMfaTicket } from "../../src/shared/crypto/jwt";
 
 process.env.DATABASE_URL ??= "postgresql://user:pass@localhost:5432/login";
 process.env.JWT_SECRET ??= "a".repeat(32);
@@ -77,5 +78,11 @@ describe("requireAuth", () => {
     }
     const missing = await request(probe).get("/__probe");
     expect(missing.status).toBe(401);
+  });
+
+  it("rejects MFA tickets as bearer tokens with 401", async () => {
+    const ticket = issueMfaTicket("some-user-id");
+    const res = await request(probe).get("/__probe").set("Authorization", `Bearer ${ticket}`);
+    expect(res.status).toBe(401);
   });
 });
