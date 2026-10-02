@@ -20,6 +20,8 @@ import { UsersService } from "./modules/users/users.service";
 import { PgUsersRepository } from "./modules/users/users.pg-repository";
 import { adminRoutes, usersRoutes } from "./modules/users/users.routes";
 import { globalLimiter, loginLimiter, mfaVerifyLimiter } from "./shared/http/rateLimit";
+import swaggerUi from "swagger-ui-express";
+import { openapiSpec } from "./docs/openapi";
 
 export interface AppDeps {
   authService: AuthService;
@@ -52,6 +54,11 @@ export function createApp(deps?: Partial<AppDeps>): express.Express {
       res.status(200).json({ status: "ok" });
     }),
   );
+
+  app.get("/docs.json", (_req, res) => {
+    res.status(200).json(openapiSpec);
+  });
+  app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
 
   app.use("/auth/login", loginLimiter());
   app.use("/auth/mfa/verify", mfaVerifyLimiter());
