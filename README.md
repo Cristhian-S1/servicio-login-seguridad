@@ -1,4 +1,4 @@
-# servicio-login
+# servicio-login-seguridad
 
 Servicio de autenticacion autocontenido (API + Swagger, sin frontend):
 registro con argon2id, access JWT + refresh rotativo con deteccion de reuso,
