@@ -19,6 +19,7 @@ import { mfaRoutes } from "./modules/mfa/mfa.routes";
 import { UsersService } from "./modules/users/users.service";
 import { PgUsersRepository } from "./modules/users/users.pg-repository";
 import { adminRoutes, usersRoutes } from "./modules/users/users.routes";
+import { globalLimiter, loginLimiter, mfaVerifyLimiter } from "./shared/http/rateLimit";
 
 export interface AppDeps {
   authService: AuthService;
@@ -43,6 +44,7 @@ export function createApp(deps?: Partial<AppDeps>): express.Express {
   app.use(helmet());
   app.use(express.json({ limit: "100kb" }));
   app.use(requestId);
+  app.use(globalLimiter());
 
   app.get(
     "/health",
@@ -51,6 +53,8 @@ export function createApp(deps?: Partial<AppDeps>): express.Express {
     }),
   );
 
+  app.use("/auth/login", loginLimiter());
+  app.use("/auth/mfa/verify", mfaVerifyLimiter());
   app.use("/auth", authRoutes(authService, mfaService));
   app.use("/auth", sessionsRoutes(sessionsService));
   app.use("/mfa", mfaRoutes(mfaService));
