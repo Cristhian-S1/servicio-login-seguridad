@@ -1,5 +1,6 @@
 import { createApp } from "./app";
 import { loadEnv } from "./config/env";
+import { closeDb } from "./shared/db/sqlite";
 import { logger } from "./shared/logger";
 
 const env = loadEnv();
@@ -11,7 +12,10 @@ const server = app.listen(env.PORT, () => {
 
 function shutdown(signal: string): void {
   logger.info(`received ${signal}, shutting down`);
-  server.close(() => process.exit(0));
+  server.close(() => {
+    closeDb();
+    process.exit(0);
+  });
   setTimeout(() => process.exit(1), 10_000).unref();
 }
 

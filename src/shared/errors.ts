@@ -24,12 +24,6 @@ export class AuthError extends AppError {
   }
 }
 
-export class ForbiddenError extends AppError {
-  constructor(code = "forbidden", message = "Acceso denegado") {
-    super(403, code, message);
-  }
-}
-
 export class NotFoundError extends AppError {
   constructor(message = "No encontrado") {
     super(404, "not_found", message);
@@ -39,15 +33,6 @@ export class NotFoundError extends AppError {
 export class ConflictError extends AppError {
   constructor(code = "conflict", message = "Conflicto") {
     super(409, code, message);
-  }
-}
-
-export class RateLimitError extends AppError {
-  readonly retryAfterSeconds: number;
-
-  constructor(retryAfterSeconds: number) {
-    super(429, "rate_limited", "Demasiados intentos, prueba mas tarde");
-    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 

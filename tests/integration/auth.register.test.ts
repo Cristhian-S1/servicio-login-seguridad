@@ -1,35 +1,28 @@
+import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
-import { newDb } from "pg-mem";
 import type { Express } from "express";
 import { createApp } from "../../src/app";
-import { runMigrations } from "../../src/shared/db/migrate";
-import { PgAuthRepository } from "../../src/modules/auth/auth.pg-repository";
-import { PgAuditRepository } from "../../src/modules/audit/audit.pg-repository";
-import { AuditService } from "../../src/modules/audit/audit.service";
+import { runMigrations } from "../../src/shared/db/sqlite";
+import { SqliteAuthRepository } from "../../src/modules/auth/auth.sqlite-repository";
 import { AuthService } from "../../src/modules/auth/auth.service";
 
-process.env.DATABASE_URL ??= "postgresql://user:pass@localhost:5432/login";
 process.env.JWT_SECRET ??= "a".repeat(32);
 process.env.ARGON_MEMORY_KIB ??= "1024";
 process.env.ARGON_TIME ??= "1";
 process.env.ARGON_PARALLELISM ??= "1";
 
 let app: Express;
-let poolEnd: () => Promise<void>;
+let db: Database.Database;
 
 beforeAll(async () => {
-  const { Pool } = newDb().adapters.createPg();
-  const pool = new Pool();
-  poolEnd = () => pool.end();
-  await runMigrations(pool);
-  const audit = new AuditService(new PgAuditRepository(pool));
-  const auth = new AuthService(new PgAuthRepository(pool), audit);
-  app = createApp({ authService: auth });
+  db = new Database(":memory:");
+  await runMigrations(db);
+  app = createApp({ authService: new AuthService(new SqliteAuthRepository(db)) });
 });
 
 afterAll(async () => {
-  await poolEnd();
+  db.close();
 });
 
 describe("POST /auth/register", () => {

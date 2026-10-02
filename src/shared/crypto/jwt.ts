@@ -3,13 +3,6 @@ import { z } from "zod";
 
 export interface AccessClaims {
   sub: string;
-  role: "user" | "admin";
-  mfa: boolean;
-}
-
-export interface MfaTicketClaims {
-  sub: string;
-  scope: "mfa";
 }
 
 const jwtEnvSchema = z.object({
@@ -31,10 +24,6 @@ function config() {
 export function signAccessToken(claims: AccessClaims): string {
   const { secret, accessTtlMinutes } = config();
   return jwt.sign({ ...claims }, secret, { algorithm: "HS256", expiresIn: `${accessTtlMinutes}m` });
-}
-
-export function issueMfaTicket(userId: string): string {
-  return jwt.sign({ sub: userId, scope: "mfa" }, config().secret, { algorithm: "HS256", expiresIn: "5m" });
 }
 
 export function verifyToken(token: string): Record<string, unknown> {

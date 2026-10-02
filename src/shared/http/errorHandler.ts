@@ -1,13 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
-import { AppError, InternalError, RateLimitError, ValidationError } from "../errors";
+import { AppError, InternalError, ValidationError } from "../errors";
 import { logger } from "../logger";
 
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
-  if (err instanceof RateLimitError) {
-    res.setHeader("Retry-After", String(err.retryAfterSeconds));
-  }
-
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       error: { code: err.code, message: err.message, ...(err.details !== undefined ? { details: err.details } : {}) },

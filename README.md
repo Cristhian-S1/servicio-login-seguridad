@@ -1,59 +1,44 @@
-# servicio-login-seguridad
+# servicio-login (simple)
 
-Servicio de autenticacion autocontenido (API + Swagger, sin frontend):
-registro con argon2id, access JWT + refresh rotativo con deteccion de reuso,
-MFA TOTP + recovery codes, rate limiting, auditoria y RBAC. Docker local hoy,
-estructura lista para endurecer (VM/k8s) sin reescribir.
+Login basico: registro + login con JWT, SQLite en archivo local.
+Sin MFA, sin refresh, sin roles, sin rate limiting, sin auditoria:
+esa capa la implementa el equipo.
 
-## Quickstart
+## Quickstart (solo npm)
 
 ```bash
-cp .env.example .env   # completar secretos
-docker compose up --build -d
+npm install
+cp .env.example .env   # completar JWT_SECRET (openssl rand -hex 32)
 npm run db:migrate
-SEED_PASSWORD='...' npm run db:seed
-BASE=http://localhost:3000 SEED_PASSWORD='...' ./scripts/demo-defensa.sh
+SEED_PASSWORD='...' npm run db:seed   # crea demo@example.com (opcional)
+npm run dev
 ```
 
 Swagger: `http://localhost:3000/docs`.
 
 ## Endpoints
 
-| Metodo | Ruta | Auth | Que hace |
-|---|---|---|---|
-| GET | /health | - | 200 `{status:"ok"}` |
-| POST | /auth/register | - | 201 `{id,email}` / 409 email en uso |
-| POST | /auth/login | - | tokens, o `{mfaRequired,mfaTicket}` |
-| POST | /auth/refresh | - | rota el par; reuso = 401 |
-| POST | /auth/logout | Bearer | revoca la familia (204) |
-| POST | /auth/mfa/verify | ticket | paso 2: tokens con `mfa:true` |
-| POST | /mfa/setup | Bearer | `{secret,otpauthUrl}` |
-| POST | /mfa/confirm | Bearer | activa MFA, 10 recovery codes (una vez) |
-| GET | /users/me | Bearer | perfil sin hash |
-| GET | /admin/users | admin+MFA | lista usuarios |
+| Metodo | Ruta | Que hace |
+|---|---|---|
+| GET | /health | 200 `{status:"ok"}` |
+| POST | /auth/register | 201 `{id,email}` / 409 email en uso |
+| POST | /auth/login | 200 `{accessToken}` / 401 generico |
 
-## Estructura (patron por modulo)
+Password: minimo 12 caracteres, 3 de 4 clases. Hash argon2id.
+JWT HS256 con `sub` = id de usuario, expira en `ACCESS_TTL_MINUTES`.
 
-Cada modulo: `routes` (solo HTTP) · `service` (logica, sin express/pg) ·
-`repository` (interface) · `pg-repository` (SQL) · `schema` (zod) · `types`.
-Reglas: el service no importa express ni pg; `app.ts` es el unico wiring;
-secretos por entorno validado al arranque.
+## Estructura
 
 ```
 src/
-  app.ts server.ts  config/env.ts
-  shared/{db,crypto,http,errors.ts,logger.ts}
-  modules/{auth,users,sessions,mfa,audit}/
-docs/  security.md (amenazas)  runbook.md (operacion)
+  app.ts server.ts  config/env.ts  docs/openapi.ts
+  shared/{db (sqlite + migraciones), crypto (argon2, jwt), http, errors.ts, logger.ts}
+  modules/auth/  (routes, service, repository, sqlite-repository, schema, types)
 ```
 
-## Para la defensa (donde mirar)
+El `service` no conoce HTTP ni SQL: se testea con un fake en memoria.
+`app.ts` es el unico lugar donde se conectan las piezas.
 
-- Rotacion atomica + nuke por reuso: `src/modules/sessions/sessions.service.ts`
-- Login que miente por diseno (401 generico): `src/modules/auth/auth.service.ts`
-- MFA en dos pasos sin sesion prematura: `src/modules/mfa/mfa.service.ts`
-- Matriz RBAC con `mfa:true` para admin: `src/modules/users/users.routes.ts`
-- Secretos fuera de logs/respuestas: `src/shared/logger.ts` + tests `*-filtration`
-- Endurecimiento sin reescribir: `Dockerfile`, `docker-compose.yml`, `docs/security.md`
+## Tests
 
-Diseno completo: `arquitectura.txt`. Plan: `plan-implementacion.txt`.
+`npm test` — unitarios con fakes + integracion contra SQLite en memoria.

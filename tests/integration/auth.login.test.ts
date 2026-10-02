@@ -1,22 +1,13 @@
+import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
-import { newDb } from "pg-mem";
-import express, { type Express } from "express";
-import helmet from "helmet";
+import type { Express } from "express";
 import { createApp } from "../../src/app";
-import { runMigrations } from "../../src/shared/db/migrate";
-import { PgAuthRepository } from "../../src/modules/auth/auth.pg-repository";
-import { PgSessionsRepository } from "../../src/modules/sessions/sessions.pg-repository";
-import { PgSessionsRepository } from "../../src/modules/sessions/sessions.pg-repository";
-import { PgAuditRepository } from "../../src/modules/audit/audit.pg-repository";
-import { AuditService } from "../../src/modules/audit/audit.service";
+import { runMigrations } from "../../src/shared/db/sqlite";
+import { verifyToken } from "../../src/shared/crypto/jwt";
+import { SqliteAuthRepository } from "../../src/modules/auth/auth.sqlite-repository";
 import { AuthService } from "../../src/modules/auth/auth.service";
-import { requireAuth } from "../../src/shared/http/requireAuth";
-import { errorHandler } from "../../src/shared/http/errorHandler";
-import { SessionsService } from "../../src/modules/sessions/sessions.service";
-import { issueMfaTicket } from "../../src/shared/crypto/jwt";
 
-process.env.DATABASE_URL ??= "postgresql://user:pass@localhost:5432/login";
 process.env.JWT_SECRET ??= "a".repeat(32);
 process.env.ARGON_MEMORY_KIB ??= "1024";
 process.env.ARGON_TIME ??= "1";
@@ -26,38 +17,25 @@ const EMAIL = "login@example.com";
 const PASSWORD = "Str0ng!Passw0rd";
 
 let app: Express;
-let probe: Express;
-let poolEnd: () => Promise<void>;
+let db: Database.Database;
 
 beforeAll(async () => {
-  const { Pool } = newDb().adapters.createPg();
-  const pool = new Pool();
-  poolEnd = () => pool.end();
-  await runMigrations(pool);
-  const audit = new AuditService(new PgAuditRepository(pool));
-  const users = new PgAuthRepository(pool);
-  const sessions = new SessionsService(new PgSessionsRepository(pool), users, audit);
-  const auth = new AuthService(users, audit, sessions);
-  app = createApp({ authService: auth, sessionsService: sessions });
-  // probe app exists only in tests, to exercise requireAuth
-  probe = express();
-  probe.use(helmet());
-  probe.use(express.json());
-  probe.get("/__probe", requireAuth, (req, res) => res.json({ sub: req.user?.sub }));
-  probe.use(errorHandler);
+  db = new Database(":memory:");
+  await runMigrations(db);
+  app = createApp({ authService: new AuthService(new SqliteAuthRepository(db)) });
   await request(app).post("/auth/register").send({ email: EMAIL, password: PASSWORD });
 });
 
 afterAll(async () => {
-  await poolEnd();
+  db.close();
 });
 
 describe("POST /auth/login", () => {
-  it("returns 200 with access + refresh tokens", async () => {
+  it("returns 200 with an access token", async () => {
     const res = await request(app).post("/auth/login").send({ email: EMAIL, password: PASSWORD });
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBeDefined();
-    expect(res.body.refreshToken).toBeDefined();
+    expect(verifyToken(res.body.accessToken)).toMatchObject({ sub: expect.any(String) });
   });
 
   it("returns the identical 401 body for wrong password and unknown email", async () => {
@@ -67,22 +45,5 @@ describe("POST /auth/login", () => {
     expect(unknown.status).toBe(401);
     expect(wrong.body).toEqual(unknown.body);
     expect(wrong.body.error.code).toBe("invalid_credentials");
-  });
-});
-
-describe("requireAuth", () => {
-  it("rejects malformed Authorization headers with 401", async () => {
-    for (const header of ["Bearer", "Bearer ", "Token abc", "garbage", "Bearer invalid.token.here"]) {
-      const res = await request(probe).get("/__probe").set("Authorization", header);
-      expect(res.status).toBe(401);
-    }
-    const missing = await request(probe).get("/__probe");
-    expect(missing.status).toBe(401);
-  });
-
-  it("rejects MFA tickets as bearer tokens with 401", async () => {
-    const ticket = issueMfaTicket("some-user-id");
-    const res = await request(probe).get("/__probe").set("Authorization", `Bearer ${ticket}`);
-    expect(res.status).toBe(401);
   });
 });

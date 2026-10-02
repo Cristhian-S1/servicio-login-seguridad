@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { loadEnv } from "../../src/config/env";
 
 const BASE_ENV = {
-  DATABASE_URL: "postgresql://user:pass@localhost:5432/login",
+  DB_PATH: ":memory:",
   JWT_SECRET: "a".repeat(32),
 };
 
@@ -19,6 +19,6 @@ describe("loadEnv", () => {
   it("loads defaults for optional vars on a valid env", () => {
     const env = loadEnv(BASE_ENV);
     expect(env.ACCESS_TTL_MINUTES).toBe(15);
-    expect(env.REFRESH_TTL_DAYS).toBe(30);
+    expect(env.DB_PATH).toBe(":memory:");
   });
 });

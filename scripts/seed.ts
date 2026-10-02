@@ -1,37 +1,20 @@
-import { getPool, type Db } from "../src/shared/db/pool";
-import { runMigrations } from "../src/shared/db/migrate";
-import { PgAuthRepository } from "../src/modules/auth/auth.pg-repository";
-import { PgSessionsRepository } from "../src/modules/sessions/sessions.pg-repository";
-import { PgAuditRepository } from "../src/modules/audit/audit.pg-repository";
-import { AuditService } from "../src/modules/audit/audit.service";
+import type Database from "better-sqlite3";
+import { getDb, runMigrations } from "../src/shared/db/sqlite";
+import { SqliteAuthRepository } from "../src/modules/auth/auth.sqlite-repository";
 import { AuthService } from "../src/modules/auth/auth.service";
-import { SessionsService } from "../src/modules/sessions/sessions.service";
 import { ConflictError } from "../src/shared/errors";
 import { logger } from "../src/shared/logger";
 
-export async function seed(db: Db, password: string): Promise<{ adminEmail: string; userEmail: string }> {
+export async function seed(db: Database.Database, password: string): Promise<{ email: string }> {
   await runMigrations(db);
-  const audit = new AuditService(new PgAuditRepository(db));
-  const users = new PgAuthRepository(db);
-  const sessions = new SessionsService(new PgSessionsRepository(db), users, audit);
-  const auth = new AuthService(users, audit, sessions);
-
-  async function ensure(email: string, role: "user" | "admin"): Promise<void> {
-    try {
-      await auth.register({ email, password });
-    } catch (err) {
-      if (!(err instanceof ConflictError)) throw err;
-    }
-    const row = await users.findByEmail(email);
-    if (!row) throw new Error(`seed: ${email} missing after register`);
-    if (role === "admin") {
-      await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [row.id]);
-    }
+  const auth = new AuthService(new SqliteAuthRepository(db));
+  const email = "demo@example.com";
+  try {
+    await auth.register({ email, password });
+  } catch (err) {
+    if (!(err instanceof ConflictError)) throw err;
   }
-
-  await ensure("admin@example.com", "admin");
-  await ensure("user@example.com", "user");
-  return { adminEmail: "admin@example.com", userEmail: "user@example.com" };
+  return { email };
 }
 
 async function main(): Promise<void> {
@@ -39,12 +22,12 @@ async function main(): Promise<void> {
   if (!password || password.length < 12) {
     throw new Error("SEED_PASSWORD is required (min 12 chars, meeting the password policy)");
   }
-  const pool = getPool();
+  const db = getDb();
   try {
-    const out = await seed(pool, password);
+    const out = await seed(db, password);
     logger.info("seed ok", out);
   } finally {
-    await pool.end();
+    db.close();
   }
 }
 

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 
-process.env.DATABASE_URL ??= "postgresql://user:pass@localhost:5432/login";
+process.env.DB_PATH ??= ":memory:";
 process.env.JWT_SECRET ??= "a".repeat(32);
 
 let app: Express;

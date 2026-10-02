@@ -3,8 +3,10 @@ ARQUITECTURA - SERVICIO DE LOGIN
 Documento de trabajo / indicaciones de estructura
 ================================================================================
 
-Estado: DISENO + PLAN COMPLETOS. Pendiente: revision del plan y eleccion
-del metodo de ejecucion.
+Estado: VERSION SIMPLIFICADA (2026-10-02). Se quito la capa de seguridad
+(MFA, refresh, RBAC, rate limiting, auditoria) y Postgres; queda login
+minimo con SQLite. Detalle en seccion 15. La copia completa previa esta
+respaldada por el equipo.
 
 Ultima actualizacion: 2026-10-01
 
@@ -409,6 +411,22 @@ REGLAS DE SEGURIDAD DEL CODIGO (el jurado puede verificarlas):
   - Ningun secreto en logs: lista de campos prohibidos en el logger + test.
   - Ningun secreto en respuestas: test de no-filtracion en integracion.
   - Dependencias con lockfile + npm audit; imagen sin codigo fuente.
+
+
+--------------------------------------------------------------------------------
+15. SIMPLIFICACION v2 (2026-10-02): SOLO LOGIN, SQLITE
+--------------------------------------------------------------------------------
+
+La capa de seguridad la implementa el equipo sobre esta base. Se quito:
+modulos sessions, mfa, audit, users; middlewares requireAuth/Role/Mfa;
+rate limiting; TOTP; Postgres (pg, pg-mem) + docker-compose.
+
+QUEDA: POST /auth/register + POST /auth/login (JWT con sub), hash argon2id,
+tabla users minima (id, email, password_hash, is_active), SQLite en archivo
+(DB_PATH, default ./data/login.db), Swagger, tests contra SQLite en memoria.
+
+Arranque: npm install -> cp .env.example .env -> npm run db:migrate ->
+npm run dev. Sin Docker.
 
 
 ================================================================================

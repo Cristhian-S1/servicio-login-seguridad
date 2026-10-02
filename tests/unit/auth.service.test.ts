@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AuthService } from "../../src/modules/auth/auth.service";
 import { registerSchema } from "../../src/modules/auth/auth.schema";
-import { AuditService } from "../../src/modules/audit/audit.service";
 import { ConflictError } from "../../src/shared/errors";
-import type { SessionsService } from "../../src/modules/sessions/sessions.service";
 import type { AuthRepository, NewUser } from "../../src/modules/auth/auth.repository";
 
 process.env.ARGON_MEMORY_KIB ??= "1024";
@@ -24,11 +22,8 @@ function setup(existing: Array<{ email: string }> = []) {
       users.push(row);
       return row;
     }),
-    setMfaEnabled: vi.fn(async () => {}),
   };
-  const audit = new AuditService({ append: vi.fn(async () => {}) });
-  const sessions = { createSession: vi.fn(), refresh: vi.fn(), logout: vi.fn() } as unknown as SessionsService;
-  return { svc: new AuthService(repo, audit, sessions), audit, users };
+  return { svc: new AuthService(repo), users };
 }
 
 describe("AuthService.register", () => {

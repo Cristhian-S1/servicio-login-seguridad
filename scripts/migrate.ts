@@ -1,14 +1,13 @@
-import { getPool } from "../src/shared/db/pool";
-import { runMigrations } from "../src/shared/db/migrate";
+import { getDb, runMigrations } from "../src/shared/db/sqlite";
 import { logger } from "../src/shared/logger";
 
 async function main(): Promise<void> {
-  const pool = getPool();
+  const db = getDb();
   try {
-    const fresh = await runMigrations(pool);
+    const fresh = await runMigrations(db);
     logger.info(`migrations applied: ${fresh.length}`, { fresh });
   } finally {
-    await pool.end();
+    db.close();
   }
 }
 
