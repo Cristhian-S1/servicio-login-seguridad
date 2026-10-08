@@ -4,3 +4,4 @@ dist/
 data/
 .superpowers/
 coverage/
+:memory:*

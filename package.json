@@ -5,12 +5,15 @@
   "description": "Servicio de autenticacion: registro, JWT, refresh rotativo, MFA TOTP, RBAC",
   "main": "dist/src/server.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp -r src/shared/db/migrations dist/src/shared/db/migrations",
+    "build": "tsc -p tsconfig.json && cp -r src/shared/db/migrations dist/src/shared/db/migrations && cp -r public/. dist/public/",
     "start": "node dist/src/server.js",
     "dev": "tsx src/server.ts",
     "test": "vitest run",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "vm:setup": "bash scripts/setup-vm.sh",
+    "deploy": "bash scripts/deploy.sh",
+    "ip:persist": "bash scripts/persist-ip.sh"
   },
   "dependencies": {
     "argon2": "^0.45.1",
