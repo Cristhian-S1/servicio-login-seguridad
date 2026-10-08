@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import express from "express";
 import helmet from "helmet";
 import { NotFoundError } from "./shared/errors";
@@ -25,6 +26,7 @@ export function createApp(deps?: Partial<AppDeps>): express.Express {
   app.use(helmet());
   app.use(express.json({ limit: "100kb" }));
   app.use(requestId);
+  app.use(express.static(join(__dirname, "..", "public")));
 
   app.get(
     "/health",

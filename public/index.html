@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Panel para verificar salud, registro y login de la API servicio-login."
+    />
+    <title>servicio-login - verificación</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f4f5;
+        --surface: #fcfcfd;
+        --surface-2: #f1f1f3;
+        --line: #e4e4e7;
+        --line-strong: #d4d4d8;
+        --text: #18181b;
+        --muted: #52525b;
+        --accent: #047857;
+        --accent-ink: #f0fdf4;
+        --accent-soft: rgba(4, 120, 87, 0.1);
+        --ok: #047857;
+        --ok-soft: #d1fae5;
+        --ok-ink: #065f46;
+        --warn: #92400e;
+        --warn-soft: #fef3c7;
+        --bad: #991b1b;
+        --bad-soft: #fee2e2;
+        --shadow: 0 1px 2px rgba(24, 24, 27, 0.05), 0 12px 32px -24px rgba(24, 24, 27, 0.35);
+        --radius: 10px;
+        --radius-control: 8px;
+        font-size: 16px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c0c0e;
+          --surface: #141417;
+          --surface-2: #1b1b1f;
+          --line: #27272a;
+          --line-strong: #3f3f46;
+          --text: #f4f4f5;
+          --muted: #a1a1aa;
+          --accent: #34d399;
+          --accent-ink: #052e16;
+          --accent-soft: rgba(52, 211, 153, 0.12);
+          --ok: #34d399;
+          --ok-soft: rgba(52, 211, 153, 0.14);
+          --ok-ink: #6ee7b7;
+          --warn: #fcd34d;
+          --warn-soft: rgba(252, 211, 77, 0.14);
+          --bad: #fca5a5;
+          --bad-soft: rgba(252, 165, 165, 0.14);
+          --shadow: none;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      code,
+      pre,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      }
+
+      .page {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Header */
+      .topbar {
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+      }
+
+      .topbar-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 14px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+      }
+
+      .brand strong {
+        font-size: 15px;
+        letter-spacing: -0.01em;
+      }
+
+      .brand-sub {
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      .health-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        background: var(--surface-2);
+        font-size: 12.5px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .health-chip[data-state="ok"] {
+        border-color: var(--ok);
+        color: var(--ok-ink);
+        background: var(--ok-soft);
+      }
+
+      .health-chip[data-state="down"] {
+        border-color: var(--bad);
+        color: var(--bad);
+        background: var(--bad-soft);
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--muted);
+        flex: none;
+      }
+
+      .health-chip[data-state="ok"] .dot {
+        background: var(--ok);
+      }
+
+      .health-chip[data-state="down"] .dot {
+        background: var(--bad);
+      }
+
+      /* Layout */
+      .layout {
+        width: 100%;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 32px 24px 40px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 24px;
+        flex: 1;
+      }
+
+      @media (min-width: 960px) {
+        .layout {
+          grid-template-columns: minmax(0, 9fr) minmax(0, 11fr);
+          gap: 40px;
+          align-items: start;
+        }
+      }
+
+      .col-left h1 {
+        margin: 0 0 10px;
+        font-size: clamp(1.75rem, 1.25rem + 1.4vw, 2.375rem);
+        line-height: 1.12;
+        letter-spacing: -0.02em;
+        font-weight: 640;
+      }
+
+      .lede {
+        margin: 0 0 28px;
+        max-width: 46ch;
+        color: var(--muted);
+        font-size: 15.5px;
+      }
+
+      /* Status panel */
+      .status-panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .status-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .dot-lg {
+        width: 11px;
+        height: 11px;
+      }
+
+      .status-panel[data-state="ok"] .dot-lg {
+        background: var(--ok);
+      }
+
+      .status-panel[data-state="down"] .dot-lg {
+        background: var(--bad);
+      }
+
+      .status-title {
+        margin: 0;
+        font-weight: 600;
+        font-size: 15px;
+      }
+
+      .status-meta {
+        margin: 1px 0 0;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      .status-meta .mono {
+        font-size: 12.5px;
+      }
+
+      /* Endpoints */
+      .endpoints {
+        margin-top: 32px;
+      }
+
+      .endpoints h2,
+      .console-head h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .endpoints ul {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        overflow: hidden;
+      }
+
+      .endpoints li {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 16px;
+      }
+
+      .endpoints li + li {
+        border-top: 1px solid var(--line);
+      }
+
+      .endpoints code {
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+
+      .expect {
+        font-size: 12.5px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .method {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        padding: 3px 7px;
+        border-radius: 6px;
+      }
+
+      .method.get {
+        background: var(--ok-soft);
+        color: var(--ok-ink);
+      }
+
+      .method.post {
+        background: var(--surface-2);
+        color: var(--muted);
+        border: 1px solid var(--line-strong);
+      }
+
+      /* Panels right column */
+      .col-right {
+        display: grid;
+        gap: 24px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        gap: 4px;
+        padding: 10px 10px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 13.5px;
+        font-weight: 550;
+        padding: 8px 14px 10px;
+        border-radius: var(--radius-control) var(--radius-control) 0 0;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+      }
+
+      .tab:hover {
+        color: var(--text);
+        background: var(--surface-2);
+      }
+
+      .tab.is-active {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
+
+      .tab:focus-visible,
+      .btn:focus-visible,
+      input:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* Forms */
+      .form {
+        padding: 20px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        font: inherit;
+        font-size: 14.5px;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-control);
+      }
+
+      input::placeholder {
+        color: var(--muted);
+        opacity: 1;
+      }
+
+      input:focus {
+        border-color: var(--accent);
+      }
+
+      .help {
+        margin: 0;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      /* Buttons */
+      .btn {
+        appearance: none;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 10px 18px;
+        border-radius: var(--radius-control);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
+      }
+
+      .btn:active {
+        transform: translateY(1px) scale(0.99);
+      }
+
+      .btn:disabled {
+        cursor: progress;
+        opacity: 0.7;
+      }
+
+      .btn-primary {
+        justify-self: start;
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        filter: brightness(1.05);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        border-color: var(--line-strong);
+        color: var(--text);
+      }
+
+      .btn-ghost:hover {
+        background: var(--surface-2);
+      }
+
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 12.5px;
+      }
+
+      /* Console */
+      .console-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .console {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 420px;
+        overflow-y: auto;
+      }
+
+      .console-empty {
+        padding: 22px 16px;
+        color: var(--muted);
+        font-size: 13.5px;
+      }
+
+      .entry {
+        padding: 14px 16px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .entry + .entry {
+        border-top: 1px solid var(--line);
+      }
+
+      .entry-head {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        font-size: 12.5px;
+      }
+
+      .status-badge {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: var(--ok-soft);
+        color: var(--ok-ink);
+      }
+
+      .entry.is-warn .status-badge {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+
+      .entry.is-bad .status-badge {
+        background: var(--bad-soft);
+        color: var(--bad);
+      }
+
+      .entry-route {
+        color: var(--muted);
+      }
+
+      .entry-time {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .entry pre {
+        margin: 0;
+        padding: 12px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-control);
+        font-size: 12.5px;
+        line-height: 1.55;
+        overflow-x: auto;
+        max-height: 220px;
+        overflow-y: auto;
+      }
+
+      .entry-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .footer {
+        border-top: 1px solid var(--line);
+        background: var(--surface);
+      }
+
+      .footer-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 16px 24px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      .footer a {
+        color: var(--text);
+        text-decoration: underline;
+        text-decoration-color: var(--line-strong);
+        text-underline-offset: 3px;
+      }
+
+      .footer a:hover {
+        text-decoration-color: var(--accent);
+      }
+
+      .noscript {
+        margin: 0;
+        padding: 12px 24px;
+        background: var(--warn-soft);
+        color: var(--warn);
+        font-size: 13.5px;
+      }
+
+      /* Entry motion */
+      @media (prefers-reduced-motion: no-preference) {
+        .entry {
+          animation: entry-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .health-chip[data-state="checking"] .dot,
+        .status-panel[data-state="checking"] .dot-lg {
+          animation: pulse 1.2s ease-in-out infinite;
+        }
+      }
+
+      @keyframes entry-in {
+        from {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="brand">
+            <strong>servicio-login</strong>
+            <span class="brand-sub">API de autenticación</span>
+          </div>
+          <div class="health-chip" id="health-chip" data-state="checking">
+            <span class="dot" aria-hidden="true"></span>
+            <span id="health-chip-text">Comprobando</span>
+          </div>
+        </div>
+      </header>
+
+      <noscript>
+        <p class="noscript">Este panel necesita JavaScript para consultar la API.</p>
+      </noscript>
+
+      <main class="layout">
+        <section class="col-left">
+          <h1>Verifica el servicio</h1>
+          <p class="lede">Comprueba salud, registro y login contra la API que corre en este host.</p>
+
+          <div class="status-panel" id="status-panel" data-state="checking" aria-live="polite">
+            <div class="status-head">
+              <span class="dot dot-lg" aria-hidden="true"></span>
+              <div>
+                <p class="status-title" id="status-title">Comprobando el estado</p>
+                <p class="status-meta" id="status-meta">
+                  <span class="mono">GET /health</span>
+                </p>
+              </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="health-retry">Reintentar</button>
+          </div>
+
+          <div class="endpoints">
+            <h2>Endpoints</h2>
+            <ul>
+              <li>
+                <span class="method get">GET</span>
+                <code>/health</code>
+                <span class="expect">200 ok</span>
+              </li>
+              <li>
+                <span class="method post">POST</span>
+                <code>/auth/register</code>
+                <span class="expect">201 creado</span>
+              </li>
+              <li>
+                <span class="method post">POST</span>
+                <code>/auth/login</code>
+                <span class="expect">200 token</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="col-right">
+          <div class="panel">
+            <div class="tabs" role="tablist" aria-label="Operación">
+              <button
+                type="button"
+                role="tab"
+                id="tab-register"
+                class="tab is-active"
+                aria-controls="form-register"
+                aria-selected="true"
+              >
+                Registro
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="tab-login"
+                class="tab"
+                aria-controls="form-login"
+                aria-selected="false"
+                tabindex="-1"
+              >
+                Login
+              </button>
+            </div>
+
+            <form
+              id="form-register"
+              class="form"
+              data-endpoint="/auth/register"
+              aria-labelledby="tab-register"
+            >
+              <div class="field">
+                <label for="register-email">Email</label>
+                <input
+                  id="register-email"
+                  name="email"
+                  type="email"
+                  required
+                  autocomplete="email"
+                  placeholder="tu@correo.cl"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="field">
+                <label for="register-password">Contraseña</label>
+                <input
+                  id="register-password"
+                  name="password"
+                  type="password"
+                  required
+                  minlength="12"
+                  autocomplete="new-password"
+                  placeholder="Mínimo 12 caracteres"
+                />
+                <p class="help">
+                  Mínimo 12 caracteres y 3 de 4 clases: minúsculas, mayúsculas, dígitos y símbolos.
+                </p>
+              </div>
+              <button type="submit" class="btn btn-primary">Crear cuenta</button>
+            </form>
+
+            <form
+              id="form-login"
+              class="form"
+              data-endpoint="/auth/login"
+              aria-labelledby="tab-login"
+              hidden
+            >
+              <div class="field">
+                <label for="login-email">Email</label>
+                <input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  required
+                  autocomplete="email"
+                  placeholder="tu@correo.cl"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="field">
+                <label for="login-password">Contraseña</label>
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  required
+                  autocomplete="current-password"
+                  placeholder="Tu contraseña"
+                />
+              </div>
+              <button type="submit" class="btn btn-primary">Iniciar sesión</button>
+            </form>
+          </div>
+
+          <div class="panel">
+            <div class="console-head">
+              <h2>Respuestas</h2>
+              <button type="button" class="btn btn-ghost btn-sm" id="clear-log">Limpiar</button>
+            </div>
+            <ol class="console" id="console" aria-live="polite">
+              <li class="console-empty" id="console-empty">Todavía no hay solicitudes.</li>
+            </ol>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div class="footer-inner">
+          <span>servicio-login</span>
+          <span aria-hidden="true">-</span>
+          <a href="/docs">Documentación Swagger</a>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        var MAX_ENTRIES = 20;
+
+        var chip = document.getElementById("health-chip");
+        var chipText = document.getElementById("health-chip-text");
+        var panel = document.getElementById("status-panel");
+        var statusTitle = document.getElementById("status-title");
+        var statusMeta = document.getElementById("status-meta");
+        var retry = document.getElementById("health-retry");
+        var consoleList = document.getElementById("console");
+        var consoleEmpty = document.getElementById("console-empty");
+        var clearLog = document.getElementById("clear-log");
+
+        function setHealthState(state, title, meta) {
+          chip.dataset.state = state;
+          panel.dataset.state = state;
+          chipText.textContent =
+            state === "ok" ? "API operativa" : state === "down" ? "API sin respuesta" : "Comprobando";
+          statusTitle.textContent = title;
+          statusMeta.textContent = meta;
+        }
+
+        function checkHealth() {
+          setHealthState("checking", "Comprobando el estado", "GET /health");
+          retry.disabled = true;
+          var started = performance.now();
+          fetch("/health", { headers: { accept: "application/json" } })
+            .then(function (res) {
+              var ms = Math.round(performance.now() - started);
+              return res.json().then(
+                function (body) {
+                  return { res: res, body: body, ms: ms };
+                },
+                function () {
+                  return { res: res, body: null, ms: ms };
+                }
+              );
+            })
+            .then(function (out) {
+              var ok = out.res.ok && out.body && out.body.status === "ok";
+              setHealthState(
+                ok ? "ok" : "down",
+                ok ? "API operativa" : "Respuesta inesperada del servicio",
+                "GET /health " + out.res.status + " en " + out.ms + " ms"
+              );
+            })
+            .catch(function (err) {
+              setHealthState("down", "API sin respuesta", "GET /health falló: " + err.message);
+            })
+            .then(function () {
+              retry.disabled = false;
+            });
+        }
+
+        function classify(status, networkError) {
+          if (networkError) return "is-bad";
+          if (status >= 200 && status < 300) return "";
+          if (status >= 500) return "is-bad";
+          return "is-warn";
+        }
+
+        function addEntry(options) {
+          if (consoleEmpty && consoleEmpty.parentNode) {
+            consoleEmpty.parentNode.removeChild(consoleEmpty);
+            consoleEmpty = null;
+          }
+
+          var li = document.createElement("li");
+          li.className = "entry " + classify(options.status, options.networkError);
+
+          var head = document.createElement("div");
+          head.className = "entry-head";
+
+          var badge = document.createElement("span");
+          badge.className = "status-badge";
+          badge.textContent = options.networkError ? "SIN CONEXIÓN" : String(options.status);
+
+          var route = document.createElement("span");
+          route.className = "entry-route mono";
+          route.textContent = options.method + " " + options.path;
+
+          var time = document.createElement("span");
+          time.className = "entry-time mono";
+          time.textContent = new Date().toLocaleTimeString("es-CL") + " · " + options.ms + " ms";
+
+          head.appendChild(badge);
+          head.appendChild(route);
+          head.appendChild(time);
+          li.appendChild(head);
+
+          var pre = document.createElement("pre");
+          pre.textContent = options.networkError
+            ? "No se pudo contactar la API: " + options.networkError
+            : JSON.stringify(options.body, null, 2);
+          li.appendChild(pre);
+
+          if (options.body && typeof options.body.accessToken === "string") {
+            var actions = document.createElement("div");
+            actions.className = "entry-actions";
+            var copy = document.createElement("button");
+            copy.type = "button";
+            copy.className = "btn btn-ghost btn-sm";
+            copy.textContent = "Copiar token";
+            copy.addEventListener("click", function () {
+              copyText(options.body.accessToken, copy);
+            });
+            actions.appendChild(copy);
+            li.appendChild(actions);
+          }
+
+          consoleList.insertBefore(li, consoleList.firstChild);
+          while (consoleList.children.length > MAX_ENTRIES) {
+            consoleList.removeChild(consoleList.lastChild);
+          }
+        }
+
+        function copyText(text, button) {
+          var done = function (ok) {
+            button.textContent = ok ? "Copiado" : "No se pudo copiar";
+            window.setTimeout(function () {
+              button.textContent = "Copiar token";
+            }, 1500);
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(
+              function () {
+                done(true);
+              },
+              function () {
+                done(false);
+              }
+            );
+          } else {
+            done(false);
+          }
+        }
+
+        function handleSubmit(form) {
+          form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            if (form.dataset.busy === "1") return;
+
+            var button = form.querySelector('button[type="submit"]');
+            var original = button.textContent;
+            form.dataset.busy = "1";
+            button.disabled = true;
+            button.textContent = "Enviando...";
+
+            var payload = Object.fromEntries(new FormData(form).entries());
+            var started = performance.now();
+
+            fetch(form.dataset.endpoint, {
+              method: "POST",
+              headers: { "content-type": "application/json", accept: "application/json" },
+              body: JSON.stringify(payload),
+            })
+              .then(function (res) {
+                var ms = Math.round(performance.now() - started);
+                return res.json().then(
+                  function (body) {
+                    return { status: res.status, body: body, ms: ms };
+                  },
+                  function () {
+                    return { status: res.status, body: null, ms: ms };
+                  }
+                );
+              })
+              .then(function (out) {
+                addEntry({
+                  method: "POST",
+                  path: form.dataset.endpoint,
+                  status: out.status,
+                  body: out.body,
+                  ms: out.ms,
+                });
+                if (out.status === 201 && form.id === "form-register") {
+                  document.getElementById("login-email").value = payload.email;
+                }
+              })
+              .catch(function (err) {
+                addEntry({
+                  method: "POST",
+                  path: form.dataset.endpoint,
+                  status: 0,
+                  body: null,
+                  ms: Math.round(performance.now() - started),
+                  networkError: err.message,
+                });
+              })
+              .then(function () {
+                form.dataset.busy = "0";
+                button.disabled = false;
+                button.textContent = original;
+              });
+          });
+        }
+
+        var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+        function activateTab(tab) {
+          tabs.forEach(function (other) {
+            var selected = other === tab;
+            other.classList.toggle("is-active", selected);
+            other.setAttribute("aria-selected", selected ? "true" : "false");
+            other.tabIndex = selected ? 0 : -1;
+            var form = document.getElementById(other.getAttribute("aria-controls"));
+            form.hidden = !selected;
+          });
+          tab.focus();
+        }
+
+        tabs.forEach(function (tab) {
+          tab.addEventListener("click", function () {
+            activateTab(tab);
+          });
+          tab.addEventListener("keydown", function (event) {
+            if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+            event.preventDefault();
+            var index = tabs.indexOf(tab);
+            var next = event.key === "ArrowRight" ? (index + 1) % tabs.length : (index - 1 + tabs.length) % tabs.length;
+            activateTab(tabs[next]);
+          });
+        });
+
+        retry.addEventListener("click", checkHealth);
+        clearLog.addEventListener("click", function () {
+          consoleList.innerHTML = "";
+          var empty = document.createElement("li");
+          empty.className = "console-empty";
+          empty.textContent = "Todavía no hay solicitudes.";
+          consoleList.appendChild(empty);
+          consoleEmpty = empty;
+        });
+
+        Array.prototype.forEach.call(
+          document.querySelectorAll("form[data-endpoint]"),
+          handleSubmit
+        );
+
+        checkHealth();
+      })();
+    </script>
+  </body>
+</html>
