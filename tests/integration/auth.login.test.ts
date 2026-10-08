@@ -8,6 +8,7 @@ import { verifyToken } from "../../src/shared/crypto/jwt";
 import { SqliteAuthRepository } from "../../src/modules/auth/auth.sqlite-repository";
 import { AuthService } from "../../src/modules/auth/auth.service";
 
+process.env.DB_PATH ??= ":memory:";
 process.env.JWT_SECRET ??= "a".repeat(32);
 process.env.ARGON_MEMORY_KIB ??= "1024";
 process.env.ARGON_TIME ??= "1";

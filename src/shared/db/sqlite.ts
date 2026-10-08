@@ -8,10 +8,14 @@ export const MIGRATIONS_DIR = join(__dirname, "migrations");
 
 let db: Database.Database | undefined;
 
+export function resolveDbPath(dbPath: string): string {
+  return dbPath === ":memory:" ? ":memory:" : resolve(dbPath);
+}
+
 export function getDb(): Database.Database {
   if (!db) {
     const env = loadEnv();
-    const file = resolve(env.DB_PATH);
+    const file = resolveDbPath(env.DB_PATH);
     mkdirSync(dirname(file), { recursive: true });
     db = new Database(file);
     db.pragma("journal_mode = WAL");
