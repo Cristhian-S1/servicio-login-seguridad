@@ -26,8 +26,24 @@ set -a
 . ./.env
 set +a
 
+# Respaldo antes de tocar el esquema. Si falla, el deploy se detiene sin migrar.
+# En el primer despliegue la base aun no existe y no hay nada que respaldar.
+if [ -f "${DB_PATH:-./data/login.db}" ]; then
+  echo "==> backup de la base"
+  npm run db:backup
+else
+  echo "==> backup omitido: aun no existe ${DB_PATH:-./data/login.db}"
+fi
+
 echo "==> migraciones"
 npm run db:migrate
+
+if [ "${SKIP_HARDENING:-0}" != "1" ] && [ -f scripts/harden-server.sh ]; then
+  echo "==> endurecimiento del servidor (scripts/harden-server.sh)"
+  sudo -E bash scripts/harden-server.sh
+else
+  echo "==> endurecimiento del servidor omitido (SKIP_HARDENING=1 o falta scripts/harden-server.sh)"
+fi
 
 if systemctl list-unit-files 2>/dev/null | grep -q '^servicio-login\.service'; then
   echo "==> reiniciando servicio-login"

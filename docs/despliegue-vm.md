@@ -236,7 +236,68 @@ siempre tras un reinicio con `ip -br a` y `curl http://192.168.102.91:3000/healt
 ## 10. Operación básica
 
 - Logs del servicio: `journalctl -u servicio-login -e`
-- Backup de la base: copiar `data/login.db` con el servicio detenido.
+- Backup de la base: `npm run db:backup` (copia consistente en caliente, con
+  verificación y poda). `npm run deploy` lo ejecuta antes de migrar. Detalle y
+  restauración en `docs/proteccion-datos.md`.
 - Rotar `JWT_SECRET`: editar `.env`, `sudo systemctl restart servicio-login`.
   Los tokens viejos mueren en un máximo de `ACCESS_TTL_MINUTES`.
 - `.env` nunca se commitea ni se copia a la imagen.
+
+## 11. Endurecimiento del servidor
+
+`npm run deploy` aplica el endurecimiento automáticamente: justo antes de
+reiniciar `servicio-login` ejecuta `sudo -E bash scripts/harden-server.sh`.
+El script es idempotente (solo reescribe los archivos cuyo contenido cambia)
+y también se puede correr a mano en la VM:
+
+```bash
+sudo -E bash scripts/harden-server.sh
+```
+
+Qué aplica, en orden:
+
+1. Instala solo lo que falte de `ufw`, `fail2ban` y `unattended-upgrades`
+   (con `apt-get update` previo).
+2. UFW: deniega entrada y permite salida; **antes de habilitarlo** permite el
+   puerto real de SSH (leído con `sshd -T`) y `${PORT:-3000}/tcp`.
+3. SSH (`/etc/ssh/sshd_config.d/00-hardening.conf`; el prefijo `00-` es
+   deliberado: sshd usa el primer valor que encuentra, así que gana frente a
+   `50-cloud-init.conf`): `PermitRootLogin no`, `MaxAuthTries 3`,
+   `X11Forwarding no`, `ClientAliveInterval 300` y `ClientAliveCountMax 2`.
+   **`PasswordAuthentication no` es opt-in**: solo se aplica con
+   `HARDEN_SSH_DISABLE_PASSWORD=1` y si el usuario que corre `sudo` tiene
+   `~/.ssh/authorized_keys` no vacío. Por defecto se mantiene la contraseña y
+   avisa. Valida con `sshd -t`; si falla, borra el drop-in nuevo y aborta sin
+   recargar.
+4. fail2ban: jail `[sshd]` con `maxretry=5` y `bantime=1h`, y reinicia el
+   servicio.
+5. sysctl (`/etc/sysctl.d/99-hardening.conf`): `rp_filter`, `tcp_syncookies`,
+   sin redirects ICMP, sin source route, `log_martians`, `kptr_restrict=2`,
+   `dmesg_restrict=1` y protección de hardlinks/symlinks; aplica con
+   `sysctl --system`.
+6. Actualizaciones de seguridad automáticas
+   (`/etc/apt/apt.conf.d/20auto-upgrades`).
+7. Drop-in de systemd para `servicio-login.service` (`NoNewPrivileges`,
+   `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome=read-only` y
+   `ReadWritePaths=<directorio de DB_PATH>`, para que la base SQLite siga
+   siendo escribible). Crea ese directorio (`0700`) si no existe, porque
+   `ReadWritePaths` falla el arranque con una ruta inexistente. Solo hace
+   `daemon-reload`; el reinicio lo hace `deploy.sh`.
+
+Además, antes de migrar, `deploy.sh` respalda la base con `npm run db:backup`
+(ver `docs/proteccion-datos.md`). Si el backup falla, el deploy se detiene sin
+migrar. En el primer despliegue, sin base todavía, el paso se omite.
+
+Para saltarlo en un deploy puntual:
+
+```bash
+SKIP_HARDENING=1 npm run deploy
+```
+
+> **Atención:** la primera vez conviene ejecutarlo con una segunda sesión SSH
+> ya abierta: si la regla de UFW o `PasswordAuthentication no` cortan la
+> sesión actual, la segunda queda viva para corregir. Para desactivar la
+> contraseña, entra primero con tu clave y recién entonces corre
+> `HARDEN_SSH_DISABLE_PASSWORD=1 npm run deploy`. Verifica después con
+> `sudo ufw status`, `sudo fail2ban-client status sshd` y
+> `ss -tlnp | grep :22`.
