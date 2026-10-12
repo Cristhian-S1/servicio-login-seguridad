@@ -11,6 +11,7 @@
     "test": "vitest run",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "db:backup": "tsx scripts/backup-db.ts",
     "vm:setup": "bash scripts/setup-vm.sh",
     "deploy": "bash scripts/deploy.sh",
     "ip:persist": "bash scripts/persist-ip.sh"
