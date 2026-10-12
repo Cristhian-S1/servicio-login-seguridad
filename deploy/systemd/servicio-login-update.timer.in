@@ -1,0 +1,13 @@
+# Plantilla: scripts/install-auto-update.sh la rellena con el usuario y la ruta del repo.
+[Unit]
+Description=Dispara la auto-actualizacion de servicio-login cada 5 minutos
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+Unit=servicio-login-update.service
+
+[Install]
+WantedBy=timers.target

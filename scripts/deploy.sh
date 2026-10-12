@@ -6,7 +6,10 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
 
-if [ -d .git ]; then
+# La auto-actualizacion fija el commit exacto que paso la compuerta de CI y
+# exporta SKIP_GIT_PULL=1: otro pull aqui podria traer un commit posterior sin
+# verificar.
+if [ "${SKIP_GIT_PULL:-0}" != "1" ] && [ -d .git ]; then
   echo "==> git pull"
   git pull --ff-only
 fi
@@ -16,8 +19,10 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-echo "==> npm install"
-npm install --no-audit --no-fund
+# npm ci: instala exactamente package-lock.json (el mismo que verifica el CI) y
+# no reescribe el lockfile, asi un deploy nunca deja el arbol sucio.
+echo "==> npm ci"
+npm ci --no-audit --no-fund
 
 echo "==> npm run build"
 npm run build

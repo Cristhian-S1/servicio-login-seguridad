@@ -1,0 +1,19 @@
+# Plantilla: scripts/install-auto-update.sh la rellena con el usuario y la
+# ruta del repo. La activa el timer servicio-login-update.timer (no lleva [Install]).
+[Unit]
+Description=Auto-actualizacion de servicio-login (fetch + npm run deploy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+WorkingDirectory=@REPO_DIR@
+ExecStart=/usr/bin/env bash scripts/auto-update.sh
+TimeoutStartSec=30min
+
+# A proposito NO se usa NoNewPrivileges=yes: el deploy necesita elevar
+# privilegios con `sudo systemctl restart servicio-login` (regla NOPASSWD
+# minima en /etc/sudoers.d/servicio-login-update) y NoNewPrivileges impediria
+# que sudo funcione. El aislamiento del servicio principal lo aplica
+# scripts/harden-server.sh, que se ejecuta a mano (fuera de este timer).

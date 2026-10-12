@@ -1,0 +1,52 @@
+name: CI
+
+# El servidor consulta estos check runs antes de auto-actualizarse
+# (scripts/auto-update.sh): el job "verify" debe llamarse exactamente asi.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Solo lectura: el workflow no necesita credenciales de escritura.
+permissions:
+  contents: read
+
+# Un push nuevo cancela la ejecucion anterior de la misma rama/PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Compuerta obligatoria de la auto-actualizacion: no renombrar "verify".
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Dependencias
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Tests
+        run: npm test
+
+  # Sintaxis y analisis estatico de los scripts de bash del repo.
+  shell:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sintaxis bash
+        run: |
+          for f in scripts/*.sh; do
+            bash -n "$f"
+          done
+      # -S warning: los avisos "info" (p. ej. SC1091 por 'source ./.env', que no
+      # existe en el runner) no deben dejar el job en rojo, porque la
+      # auto-actualizacion exige que TODOS los checks pasen.
+      - name: shellcheck
+        run: shellcheck -x -S warning scripts/*.sh
