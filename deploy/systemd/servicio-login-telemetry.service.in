@@ -1,0 +1,19 @@
+[Unit]
+Description=Publicacion de telemetria de servicio-login (repo privado separado)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/var/lib/servicio-login
+# Root ejecuta una COPIA propiedad de root, no el repo (que escribe el usuario
+# de la app). El repo se pasa solo como directorio de LECTURA de datos.
+Environment=TELEMETRY_APP_DIR=@REPO_DIR@
+ExecStart=/usr/bin/env bash /usr/local/lib/servicio-login-telemetry/publish-telemetry.sh
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/servicio-login
+TimeoutStartSec=5min
