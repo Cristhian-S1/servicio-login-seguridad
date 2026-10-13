@@ -57,6 +57,9 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 TELEMETRY_REPO="${ENV_REPO:-${TELEMETRY_REPO:-}}"
 TELEMETRY_SSH_KEY="${ENV_KEY:-${TELEMETRY_SSH_KEY:-}}"
+if [ -z "$TELEMETRY_SSH_KEY" ] && [ -f /var/lib/servicio-login/telemetry_key ]; then
+  TELEMETRY_SSH_KEY="/var/lib/servicio-login/telemetry_key"
+fi
 TELEMETRY_BRANCH="${ENV_BRANCH:-${TELEMETRY_BRANCH:-main}}"
 TELEMETRY_DIR="${ENV_DIR:-${TELEMETRY_DIR:-/var/lib/servicio-login/telemetry}}"
 TELEMETRY_ALLOW_PUBLIC="${ENV_ALLOW_PUBLIC:-${TELEMETRY_ALLOW_PUBLIC:-0}}"

@@ -126,12 +126,12 @@ bash scripts/collect-metrics.sh
 3. **Genera la deploy key dedicada** (no la compartas con nada mas):
 
    ```bash
-   sudo ssh-keygen -t ed25519 -f /etc/servicio-login/telemetry_key -N ""
+   sudo ssh-keygen -t ed25519 -f /var/lib/servicio-login/telemetry_key -N ""
    ```
 
 4. **Agrega la clave publica como deploy key** en el repo de telemetria:
    GitHub → repo → Settings → Deploy keys → Add deploy key → pega el contenido
-   de `/etc/servicio-login/telemetry_key.pub` y marca **"Allow write access"**.
+   de `/var/lib/servicio-login/telemetry_key.pub` y marca **"Allow write access"**.
    Solo en ESE repo.
 
 5. **Configura `TELEMETRY_REPO`** en `/etc/servicio-login/telemetry.env`:
@@ -147,7 +147,7 @@ bash scripts/collect-metrics.sh
    | Variable | Default | Que es |
    |---|---|---|
    | `TELEMETRY_REPO` | (vacio) | URL del repo privado de telemetria. Vacio = solo local. |
-   | `TELEMETRY_SSH_KEY` | (vacio) | Deploy key dedicada (`/etc/servicio-login/telemetry_key`). |
+   | `TELEMETRY_SSH_KEY` | `/var/lib/servicio-login/telemetry_key` (si existe) | Deploy key dedicada; se usa sola si el archivo existe. |
    | `TELEMETRY_BRANCH` | `main` | Rama a publicar. |
    | `TELEMETRY_DIR` | `/var/lib/servicio-login/telemetry` | Clon local del repo. |
    | `TELEMETRY_ALLOW_PUBLIC` | `0` | `1` permite publicar en un repo publico (no recomendado). |
@@ -210,13 +210,14 @@ Antes de publicar, y en este orden:
 Rotacion (rutina, sin cortar el servicio):
 
 1. Genera una clave nueva sin pisar la actual:
-   `sudo ssh-keygen -t ed25519 -f /etc/servicio-login/telemetry_key.new -N ""`
+   `sudo ssh-keygen -t ed25519 -f /var/lib/servicio-login/telemetry_key.new -N ""`
 2. Agrega `telemetry_key.new.pub` como deploy key (con escritura) en el repo
    de telemetria.
-3. Apunta `TELEMETRY_SSH_KEY` a la clave nueva (o espera al siguiente ciclo y
-   comprueba que publica) y verifica un ciclo exitoso.
+3. Si usas la ruta por defecto, basta con reemplazar el archivo en el paso 4;
+   si defines `TELEMETRY_SSH_KEY`, apuntala a la clave nueva. Verifica un
+   ciclo exitoso.
 4. Reemplaza el archivo y borra la clave vieja:
-   `sudo mv /etc/servicio-login/telemetry_key.new /etc/servicio-login/telemetry_key`
+   `sudo mv /var/lib/servicio-login/telemetry_key.new /var/lib/servicio-login/telemetry_key`
    y elimina la deploy key vieja en GitHub. `chmod 600` a la clave nueva.
 5. Borra `telemetry_key.new.pub` si ya no lo necesitas.
 
