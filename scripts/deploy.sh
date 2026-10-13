@@ -50,7 +50,7 @@ else
   echo "==> endurecimiento del servidor omitido (SKIP_HARDENING=1 o falta scripts/harden-server.sh)"
 fi
 
-if systemctl list-unit-files 2>/dev/null | grep -q '^servicio-login\.service'; then
+if systemctl cat servicio-login.service >/dev/null 2>&1; then
   echo "==> reiniciando servicio-login"
   sudo systemctl restart servicio-login
   sleep 1
