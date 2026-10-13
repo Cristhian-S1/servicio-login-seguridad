@@ -116,7 +116,9 @@ bash scripts/collect-metrics.sh
    Crea `/var/lib/servicio-login` (0700), `/etc/servicio-login/telemetry.env`
    (0600, solo si no existia), instala las copias propiedad de root en
    `/usr/local/lib/servicio-login-telemetry`, las unidades systemd y habilita
-   el timer. Vuelve a ejecutarlo tras actualizar los scripts de telemetria.
+   el timer. Fija en la unit el `PATH` con el directorio del `node` que usa la
+   app (systemd no hereda nvm). Vuelve a ejecutarlo tras actualizar los scripts
+   de telemetria o si cambia la ruta de `node`.
 
 2. **Crea el repositorio privado** en GitHub, por ejemplo
    `<tu-usuario>/servicio-login-telemetria`. No lo hagas publico: la guarda de
@@ -256,3 +258,4 @@ Y revoca la deploy key en GitHub (Settings → Deploy keys).
 | `fallo de red al contactar/clonar/publicar` | Normal sin conectividad; el timer lo reintenta en 15 min. |
 | `la copia local de telemetria diverge` | Alguien escribio en `TELEMETRY_DIR`; borralo y espera el siguiente ciclo. |
 | No hay `STATUS.md` ni commits nuevos | `journalctl -u servicio-login-telemetry.service -e` y revisa `telemetry.env`. |
+| `collect-metrics no produjo un JSON valido` | `node` no esta en el `PATH` del servicio (p. ej. instalado con nvm): re-ejecuta `sudo bash scripts/install-telemetry.sh` y verifica `Environment=PATH=` con `systemctl cat servicio-login-telemetry.service`. |

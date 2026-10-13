@@ -59,6 +59,31 @@ fi
 [ -f "$TIMER_SRC" ] || die "falta la plantilla $TIMER_SRC"
 [ -f "$ENV_EXAMPLE" ] || die "falta $ENV_EXAMPLE"
 
+# systemd no hereda el PATH del shell: si node viene de nvm hay que fijarlo en
+# la unit. Se deduce del servicio principal, o de la nvm del usuario de la app.
+NODE_DIR=""
+if NODE_BIN="$(command -v node 2>/dev/null)"; then
+  NODE_DIR="$(dirname "$NODE_BIN")"
+fi
+if [ -z "$NODE_DIR" ]; then
+  APP_EXEC="$(systemctl cat servicio-login.service 2>/dev/null | awk -F'=' '/^ExecStart=/{print $2; exit}')"
+  APP_NODE="${APP_EXEC%% *}"
+  if [ -n "$APP_NODE" ] && [ -x "$APP_NODE" ]; then
+    NODE_DIR="$(dirname "$APP_NODE")"
+  fi
+fi
+if [ -z "$NODE_DIR" ] && [ -n "${SUDO_USER:-}" ] && [ -d "/home/$SUDO_USER/.nvm/versions/node" ]; then
+  for candidate in /home/"$SUDO_USER"/.nvm/versions/node/*/bin; do
+    if [ -x "$candidate/node" ]; then NODE_DIR="$candidate"; fi
+  done
+fi
+if [ -z "$NODE_DIR" ]; then
+  NODE_DIR="/usr/local/bin"
+  echo "AVISO: no encontre node; la telemetria no podra recolectar ni publicar. Define PATH en $CONF_FILE." >&2
+else
+  log "node para el servicio de telemetria: $NODE_DIR"
+fi
+
 log "creando $STATE_DIR (0700)"
 install -d -m 0700 "$STATE_DIR"
 
@@ -78,6 +103,7 @@ render_template() {
   tmp="$(mktemp)"
   content="$(<"$src")"
   content="${content//@REPO_DIR@/$REPO_DIR}"
+  content="${content//@NODE_DIR@/$NODE_DIR}"
   printf '%s\n' "$content" >"$tmp"
   if [ -f "$dst" ] && cmp -s "$tmp" "$dst"; then
     printf 'sin cambios: %s\n' "$dst"

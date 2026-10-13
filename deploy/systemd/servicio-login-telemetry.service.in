@@ -10,6 +10,7 @@ WorkingDirectory=/var/lib/servicio-login
 # Root ejecuta una COPIA propiedad de root, no el repo (que escribe el usuario
 # de la app). El repo se pasa solo como directorio de LECTURA de datos.
 Environment=TELEMETRY_APP_DIR=@REPO_DIR@
+Environment=PATH=@NODE_DIR@:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/bin/env bash /usr/local/lib/servicio-login-telemetry/publish-telemetry.sh
 PrivateTmp=yes
 NoNewPrivileges=yes
